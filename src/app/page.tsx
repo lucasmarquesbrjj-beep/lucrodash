@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 const fmt = (v: number, t = 'brl') => {
   if (t === 'brl') return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
@@ -9,14 +9,10 @@ const fmt = (v: number, t = 'brl') => {
   return String(v)
 }
 
-const MOCK = {
-  faturamentoPago: 87240, faturamentoBruto: 101654, pedidosGerados: 908, pedidosPagos: 552,
-  pedidosPendentes: 287, lucro: 24830, roi: 1.82, margem: 28.46, cpa: 20.12,
-  adsTotal: 13640, adsMeta: 9840, adsGoogle: 3800, custoProdutos: 22180, frete: 8940,
-  gateway: 2618, checkout: 1312, impostos: 8718, cartaoAprovado: 298, cartaoPendente: 87,
-  boletoPago: 142, boletoPendente: 184, pixPago: 112, pixPendente: 16,
-  ticketMedio: 158.04, reembolsado: 1240, descontos: 3200, metaMes: 250000, faturadoMes: 87240,
-}
+const PAGES = ['dashboard','produtos','taxas','meta-ads','lancamentos'] as const
+type Page = typeof PAGES[number]
+const LABELS: Record<Page,string> = { dashboard:'Dashboard', produtos:'Produtos', taxas:'Taxas & Tarifas', 'meta-ads':'Meta Ads', lancamentos:'Lançamentos' }
+const ICONS: Record<Page,string> = { dashboard:'▣', produtos:'◈', taxas:'%', 'meta-ads':'⬡', lancamentos:'⊕' }
 
 const PRODS = [
   { id: 1, name: 'Creme Anti-Age Premium', sku: 'CAP-001', cost: 28.5, price: 197, sales: 142, revenue: 27974, profit: 9840, cpa: 18.5, img: '🧴' },
@@ -24,21 +20,6 @@ const PRODS = [
   { id: 3, name: 'Kit Emagrecimento 30 dias', sku: 'KIT-003', cost: 45.0, price: 297, sales: 67, revenue: 19899, profit: 8120, cpa: 31.4, img: '📦' },
   { id: 4, name: 'Sérum Vitamina C', sku: 'SER-004', cost: 22.0, price: 127, sales: 203, revenue: 25781, profit: 11230, cpa: 14.2, img: '✨' },
 ]
-
-const HOURLY = [1200,800,400,300,200,600,1800,3200,5400,7200,8900,9800,7600,8200,9100,10200,11400,10800,9600,8400,7100,5800,4200,2900]
-const STATES = [
-  { state: 'SP', orders: 312, revenue: 48200, pct: 34 },
-  { state: 'RJ', orders: 187, revenue: 28900, pct: 20 },
-  { state: 'MG', orders: 143, revenue: 22100, pct: 16 },
-  { state: 'RS', orders: 98, revenue: 15200, pct: 11 },
-  { state: 'PR', orders: 87, revenue: 13400, pct: 10 },
-  { state: 'Outros', orders: 81, revenue: 12500, pct: 9 },
-]
-
-const PAGES = ['dashboard','produtos','taxas','meta-ads','lancamentos'] as const
-type Page = typeof PAGES[number]
-const LABELS: Record<Page,string> = { dashboard:'Dashboard', produtos:'Produtos', taxas:'Taxas & Tarifas', 'meta-ads':'Meta Ads', lancamentos:'Lançamentos' }
-const ICONS: Record<Page,string> = { dashboard:'▣', produtos:'◈', taxas:'%', 'meta-ads':'⬡', lancamentos:'⊕' }
 
 const card = (label: string, value: string, color: string, sub?: string, trend?: number) => (
   <div style={{ background:'#141320', border:'1px solid #1e1d2e', borderRadius:14, padding:'16px 18px', position:'relative', overflow:'hidden' }}>
@@ -64,14 +45,14 @@ function MiniRows({ title, rows, color='#6366f1' }: { title:string, rows:{label:
   )
 }
 
-function HourBar() {
-  const max = Math.max(...HOURLY)
+function HourBar({ hourly }: { hourly: number[] }) {
+  const max = Math.max(...hourly, 1)
   const now = new Date().getHours()
   return (
     <div style={{ background:'#141320', border:'1px solid #1e1d2e', borderRadius:14, padding:18 }}>
       <div style={{ fontSize:11, fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:12 }}>Vendas por Hora</div>
       <div style={{ display:'flex', alignItems:'flex-end', gap:2, height:80 }}>
-        {HOURLY.map((v,i) => (
+        {hourly.map((v,i) => (
           <div key={i} title={`${i}h: ${fmt(v)}`} style={{ flex:1, height:`${Math.max((v/max)*100,3)}%`, background:i===now?'#6366f1':`rgba(99,102,241,${0.15+(v/max)*0.5})`, borderRadius:'2px 2px 0 0' }}/>
         ))}
       </div>
@@ -170,6 +151,23 @@ function Ranking() {
 
 function DashPage() {
   const [filter, setFilter] = useState('today')
+  const [data, setData] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    setLoading(true)
+    setError('')
+    fetch(`/api/shopify/orders?filter=${filter}`)
+      .then(r => r.json())
+      .then(d => { setData(d); setLoading(false) })
+      .catch(e => { setError(e.message); setLoading(false) })
+  }, [filter])
+
+  const d = data || {}
+  const hourly = d.hourly || Array(24).fill(0)
+  const states = d.states || []
+
   return (
     <div>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20, flexWrap:'wrap', gap:10 }}>
@@ -184,68 +182,73 @@ function DashPage() {
         </div>
       </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(155px,1fr))', gap:10, marginBottom:12 }}>
-        {card('Faturamento Pago', fmt(MOCK.faturamentoPago), '#6366f1', `Bruto: ${fmt(MOCK.faturamentoBruto)}`, 12.4)}
-        {card('Lucro', fmt(MOCK.lucro), '#34d399', `Margem: ${fmt(MOCK.margem,'pct')}`, 8.7)}
-        {card('Pedidos Pagos', fmt(MOCK.pedidosPagos,'num'), '#a78bfa', `de ${fmt(MOCK.pedidosGerados,'num')} gerados`, 5.2)}
-        {card('Ticket Médio', fmt(MOCK.ticketMedio), '#fbbf24', undefined, 2.1)}
-        {card('ROI', fmt(MOCK.roi,'x'), '#34d399', `CPA: ${fmt(MOCK.cpa)}`, 4.3)}
-        {card('Ads Total', fmt(MOCK.adsTotal), '#f87171', `Meta: ${fmt(MOCK.adsMeta)}`, -3.2)}
-      </div>
+      {loading && <div style={{ textAlign:'center', padding:60, color:'#64748b', fontSize:14 }}>⏳ Carregando dados da Shopify...</div>}
+      {error && <div style={{ textAlign:'center', padding:40, color:'#f87171', fontSize:13 }}>❌ Erro: {error}</div>}
 
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginBottom:12 }}>
-        <MiniRows title="Pedidos" color="#a5b4fc" rows={[
-          { label:'Gerados', value:fmt(MOCK.pedidosGerados,'num') },
-          { label:'Pendentes', value:fmt(MOCK.pedidosPendentes,'num') },
-          { label:'Cartão aprovado', value:fmt(MOCK.cartaoAprovado,'num'), hi:true },
-          { label:'Cartão pendente', value:fmt(MOCK.cartaoPendente,'num') },
-          { label:'Boleto pago', value:fmt(MOCK.boletoPago,'num'), hi:true },
-          { label:'Boleto pendente', value:fmt(MOCK.boletoPendente,'num') },
-          { label:'PIX pago', value:fmt(MOCK.pixPago,'num'), hi:true },
-          { label:'PIX pendente', value:fmt(MOCK.pixPendente,'num') },
-        ]}/>
-        <MiniRows title="Lucro & Custos" color="#34d399" rows={[
-          { label:'ROI', value:fmt(MOCK.roi,'x'), hi:true },
-          { label:'Margem', value:fmt(MOCK.margem,'pct'), hi:true },
-          { label:'CPA médio', value:fmt(MOCK.cpa) },
-          { label:'Meta Ads', value:fmt(MOCK.adsMeta) },
-          { label:'Google Ads', value:fmt(MOCK.adsGoogle) },
-          { label:'Custo produtos', value:fmt(MOCK.custoProdutos) },
-          { label:'Gateway', value:fmt(MOCK.gateway) },
-          { label:'Impostos', value:fmt(MOCK.impostos) },
-        ]}/>
-        <MiniRows title="Extras" color="#fbbf24" rows={[
-          { label:'Ticket médio', value:fmt(MOCK.ticketMedio), hi:true },
-          { label:'Frete', value:fmt(MOCK.frete) },
-          { label:'Descontos', value:fmt(MOCK.descontos) },
-          { label:'Reembolsado', value:fmt(MOCK.reembolsado) },
-          { label:'Fat. Pago', value:fmt(MOCK.faturamentoPago), hi:true },
-        ]}/>
-      </div>
+      {!loading && !error && (
+        <>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(155px,1fr))', gap:10, marginBottom:12 }}>
+            {card('Faturamento Pago', fmt(d.faturamentoPago||0), '#6366f1', `Bruto: ${fmt(d.faturamentoBruto||0)}`)}
+            {card('Pedidos Pagos', fmt(d.pedidosPagos||0,'num'), '#a78bfa', `de ${fmt(d.pedidosGerados||0,'num')} gerados`)}
+            {card('Ticket Médio', fmt(d.ticketMedio||0), '#fbbf24')}
+            {card('Descontos', fmt(d.descontos||0), '#f87171')}
+            {card('Frete', fmt(d.frete||0), '#34d399')}
+          </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr', gap:10, marginBottom:12 }}>
-        <HourBar/>
-        <MetaMes atual={MOCK.faturadoMes} meta={MOCK.metaMes}/>
-      </div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginBottom:12 }}>
+            <MiniRows title="Pedidos" color="#a5b4fc" rows={[
+              { label:'Gerados', value:fmt(d.pedidosGerados||0,'num') },
+              { label:'Pendentes', value:fmt(d.pedidosPendentes||0,'num') },
+              { label:'Cartão aprovado', value:fmt(d.cartaoAprovado||0,'num'), hi:true },
+              { label:'Cartão pendente', value:fmt(d.cartaoPendente||0,'num') },
+              { label:'Boleto pago', value:fmt(d.boletoPago||0,'num'), hi:true },
+              { label:'Boleto pendente', value:fmt(d.boletoPendente||0,'num') },
+              { label:'PIX pago', value:fmt(d.pixPago||0,'num'), hi:true },
+              { label:'PIX pendente', value:fmt(d.pixPendente||0,'num') },
+            ]}/>
+            <MiniRows title="Resumo Financeiro" color="#34d399" rows={[
+              { label:'Faturamento Pago', value:fmt(d.faturamentoPago||0), hi:true },
+              { label:'Faturamento Bruto', value:fmt(d.faturamentoBruto||0) },
+              { label:'Ticket Médio', value:fmt(d.ticketMedio||0) },
+              { label:'Descontos', value:fmt(d.descontos||0) },
+              { label:'Frete', value:fmt(d.frete||0) },
+            ]}/>
+            <MiniRows title="Pedidos por Método" color="#fbbf24" rows={[
+              { label:'Cartão aprovado', value:fmt(d.cartaoAprovado||0,'num'), hi:true },
+              { label:'Boleto pago', value:fmt(d.boletoPago||0,'num'), hi:true },
+              { label:'PIX pago', value:fmt(d.pixPago||0,'num'), hi:true },
+              { label:'Cartão pendente', value:fmt(d.cartaoPendente||0,'num') },
+              { label:'Boleto pendente', value:fmt(d.boletoPendente||0,'num') },
+              { label:'PIX pendente', value:fmt(d.pixPendente||0,'num') },
+            ]}/>
+          </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 2fr', gap:10 }}>
-        <div style={{ background:'#141320', border:'1px solid #1e1d2e', borderRadius:14, padding:18 }}>
-          <div style={{ fontSize:11, fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:12 }}>Vendas por Estado</div>
-          {STATES.map((s,i) => (
-            <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'7px 0', borderBottom:i<STATES.length-1?'1px solid #1a1929':'none' }}>
-              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                <span style={{ fontSize:12, fontWeight:700, color:'#a5b4fc', minWidth:28 }}>{s.state}</span>
-                <div style={{ height:3, width:`${s.pct*1.6}px`, background:'linear-gradient(90deg,#4338ca,#7c3aed)', borderRadius:2 }}/>
-              </div>
-              <div style={{ textAlign:'right' }}>
-                <div style={{ fontSize:12, fontWeight:600, color:'#e2e8f0' }}>{fmt(s.revenue)}</div>
-                <div style={{ fontSize:10, color:'#64748b' }}>{s.orders} pedidos</div>
-              </div>
+          <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr', gap:10, marginBottom:12 }}>
+            <HourBar hourly={hourly}/>
+            <MetaMes atual={d.faturamentoPago||0} meta={250000}/>
+          </div>
+
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 2fr', gap:10 }}>
+            <div style={{ background:'#141320', border:'1px solid #1e1d2e', borderRadius:14, padding:18 }}>
+              <div style={{ fontSize:11, fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:12 }}>Vendas por Estado</div>
+              {states.length === 0 && <div style={{ fontSize:12, color:'#475569' }}>Sem dados</div>}
+              {states.map((s: any, i: number) => (
+                <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'7px 0', borderBottom:i<states.length-1?'1px solid #1a1929':'none' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                    <span style={{ fontSize:12, fontWeight:700, color:'#a5b4fc', minWidth:28 }}>{s.state}</span>
+                    <div style={{ height:3, width:`${s.pct*1.6}px`, background:'linear-gradient(90deg,#4338ca,#7c3aed)', borderRadius:2 }}/>
+                  </div>
+                  <div style={{ textAlign:'right' }}>
+                    <div style={{ fontSize:12, fontWeight:600, color:'#e2e8f0' }}>{fmt(s.revenue)}</div>
+                    <div style={{ fontSize:10, color:'#64748b' }}>{s.orders} pedidos</div>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-        <Ranking/>
-      </div>
+            <Ranking/>
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -395,10 +398,6 @@ function MetaAdsPage() {
             ))}
           </div>
         </div>
-      </div>
-      <div style={{ marginTop:14, background:'rgba(99,102,241,0.08)', border:'1px solid rgba(99,102,241,0.2)', borderRadius:12, padding:'14px 18px' }}>
-        <div style={{ fontSize:12, fontWeight:600, color:'#a5b4fc', marginBottom:4 }}>⚡ Integração automática em breve</div>
-        <p style={{ fontSize:12, color:'#64748b', lineHeight:1.6 }}>Quando sua conta Meta Developer for aprovada, os gastos serão puxados automaticamente todos os dias.</p>
       </div>
     </div>
   )
