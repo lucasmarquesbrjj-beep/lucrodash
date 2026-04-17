@@ -286,7 +286,7 @@ const [mostrarSenha, setMostrarSenha] = useState(false)
     <div style={{ minHeight:'100vh', background:'#0a0918', display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
       <div style={{ width:'100%', maxWidth:380 }}>
         <div style={{ textAlign:'center', marginBottom:32 }}>
-          <div style={{ width:52, height:52, borderRadius:14, background:'linear-gradient(135deg,#4338ca,#7c3aed)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:700, fontSize:22, margin:'0 auto 16px' }}>L</div>
+          <div style={{ width:52, height:52, borderRadius:14, background:'linear-gradient(135deg,#4338ca,#7c3aed)', display:'flex', alignItems<img src="/logo.png" alt="LucroDash" style={{ width:200, margin:'0 auto 8px', display:'block' }} />:'center', justifyContent:'center', color:'#fff', fontWeight:700, fontSize:22, margin:'0 auto 16px' }}>L</div>
           <h1 style={{ fontSize:22, fontWeight:700, color:'#f1f5f9', margin:0 }}>LucroDash</h1>
           <p style={{ fontSize:13, color:'#64748b', marginTop:6 }}>Pelos Pets · Controle de lucro</p>
         </div>
