@@ -261,6 +261,9 @@ function LoginPage({ onLogin }: { onLogin: (nome: string) => void }) {
   const [erro, setErro] = useState('')
   const [loading, setLoading] = useState(false)
 
+const [mostrarSenha, setMostrarSenha] = useState(false)
+
+  
   const handleLogin = async () => {
     setLoading(true)
     setErro('')
@@ -301,16 +304,24 @@ function LoginPage({ onLogin }: { onLogin: (nome: string) => void }) {
               />
             </div>
             <div>
-              <label style={{ fontSize:12, color:'#64748b', display:'block', marginBottom:6 }}>Senha</label>
-              <input
-                type="password"
-                value={senha}
-                onChange={e => setSenha(e.target.value)}
-                placeholder="••••••••"
-                style={{ width:'100%', padding:'10px 14px', background:'#0f0e17', border:'1px solid #2d2d3d', borderRadius:10, color:'#f1f5f9', fontSize:14, boxSizing:'border-box' }}
-                onKeyDown={e => e.key === 'Enter' && handleLogin()}
-              />
-            </div>
+  <label style={{ fontSize:12, color:'#64748b', display:'block', marginBottom:6 }}>Senha</label>
+  <div style={{ position:'relative' }}>
+    <input
+      type={mostrarSenha ? 'text' : 'password'}
+      value={senha}
+      onChange={e => setSenha(e.target.value)}
+      placeholder="••••••••"
+      style={{ width:'100%', padding:'10px 14px', paddingRight:44, background:'#0f0e17', border:'1px solid #2d2d3d', borderRadius:10, color:'#f1f5f9', fontSize:14, boxSizing:'border-box' }}
+      onKeyDown={e => e.key === 'Enter' && handleLogin()}
+    />
+    <button
+      onClick={() => setMostrarSenha(!mostrarSenha)}
+      style={{ position:'absolute', right:12, top:'50%', transform:'translateY(-50%)', background:'transparent', border:'none', color:'#64748b', cursor:'pointer', fontSize:16, padding:0 }}
+    >
+      {mostrarSenha ? '🙈' : '👁️'}
+    </button>
+  </div>
+</div>
             {erro && <div style={{ fontSize:12, color:'#f87171', textAlign:'center' }}>{erro}</div>}
             <button
               onClick={handleLogin}
