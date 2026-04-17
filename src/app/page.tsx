@@ -175,7 +175,7 @@ function DashPage() {
           <h1 style={{ fontSize:20, fontWeight:700, color:'#f1f5f9' }}>Dashboard</h1>
           <p style={{ fontSize:12, color:'#64748b', marginTop:2 }}>Pelos Pets · Visão geral da operação</p>
         </div>
-        <div style={{ display:'flex', gap:5 }}>
+        <div style={{ display:'flex', gap:5, flexWrap:'wrap' }}>
           {[['today','Hoje'],['yesterday','Ontem'],['7d','7 dias'],['30d','30 dias'],['month','Mês']].map(([v,l]) => (
             <button key={v} onClick={() => setFilter(v)} style={{ padding:'5px 12px', borderRadius:20, fontSize:12, border:filter===v?'1.5px solid #6366f1':'1px solid #2d2d3d', background:filter===v?'rgba(99,102,241,0.15)':'transparent', color:filter===v?'#a5b4fc':'#64748b' }}>{l}</button>
           ))}
@@ -195,7 +195,7 @@ function DashPage() {
             {card('Frete', fmt(d.frete||0), '#34d399')}
           </div>
 
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginBottom:12 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))', gap:10, marginBottom:12 }}>
             <MiniRows title="Pedidos" color="#a5b4fc" rows={[
               { label:'Gerados', value:fmt(d.pedidosGerados||0,'num') },
               { label:'Pendentes', value:fmt(d.pedidosPendentes||0,'num') },
@@ -223,12 +223,12 @@ function DashPage() {
             ]}/>
           </div>
 
-          <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr', gap:10, marginBottom:12 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))', gap:10, marginBottom:12 }}>
             <HourBar hourly={hourly}/>
             <MetaMes atual={d.faturamentoPago||0} meta={250000}/>
           </div>
 
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 2fr', gap:10 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))', gap:10 }}>
             <div style={{ background:'#141320', border:'1px solid #1e1d2e', borderRadius:14, padding:18 }}>
               <div style={{ fontSize:11, fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:12 }}>Vendas por Estado</div>
               {states.length === 0 && <div style={{ fontSize:12, color:'#475569' }}>Sem dados</div>}
@@ -329,7 +329,7 @@ function TaxasPage() {
     <div>
       <h1 style={{ fontSize:20, fontWeight:700, color:'#f1f5f9', marginBottom:4 }}>Taxas & Tarifas</h1>
       <p style={{ fontSize:12, color:'#64748b', marginBottom:16 }}>Configure tudo que impacta seu lucro</p>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:14 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(250px,1fr))', gap:14 }}>
         <div style={{ background:'#141320', border:'1px solid #1e1d2e', borderRadius:14, padding:20 }}>
           <div style={{ fontSize:12, fontWeight:700, color:'#a5b4fc', marginBottom:16, paddingBottom:10, borderBottom:'1px solid #1e1d2e' }}>Taxas de Pagamento</div>
           <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
@@ -378,7 +378,7 @@ function MetaAdsPage() {
     <div>
       <h1 style={{ fontSize:20, fontWeight:700, color:'#f1f5f9', marginBottom:4 }}>Meta Ads</h1>
       <p style={{ fontSize:12, color:'#64748b', marginBottom:16 }}>Lançamento manual do gasto diário</p>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))', gap:14 }}>
         <div style={{ background:'#141320', border:'1px solid #1e1d2e', borderRadius:14, padding:22 }}>
           <div style={{ fontSize:12, fontWeight:700, color:'#a5b4fc', marginBottom:14 }}>Lançar Gasto do Dia</div>
           <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
@@ -465,16 +465,42 @@ function LancamentosPage() {
 
 export default function App() {
   const [page, setPage] = useState<Page>('dashboard')
+  const [menuOpen, setMenuOpen] = useState(false)
+
   return (
     <div style={{ display:'flex', minHeight:'100vh', background:'#0a0918' }}>
-      <aside style={{ width:210, minHeight:'100vh', background:'#0f0e17', borderRight:'1px solid #1e1d2e', display:'flex', flexDirection:'column', flexShrink:0 }}>
-        <div style={{ padding:'18px 16px', borderBottom:'1px solid #1e1d2e', display:'flex', alignItems:'center', gap:8 }}>
-          <div style={{ width:28, height:28, borderRadius:8, background:'linear-gradient(135deg,#4338ca,#7c3aed)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:700, fontSize:14, flexShrink:0 }}>L</div>
-          <span style={{ color:'#e2e8f0', fontWeight:700, fontSize:15 }}>LucroDash</span>
+
+      {/* Overlay escuro quando menu aberto no mobile */}
+      {menuOpen && (
+        <div onClick={() => setMenuOpen(false)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', zIndex:40 }}/>
+      )}
+
+      {/* Sidebar */}
+      <aside style={{
+        width: 210,
+        minHeight: '100vh',
+        background: '#0f0e17',
+        borderRight: '1px solid #1e1d2e',
+        display: 'flex',
+        flexDirection: 'column',
+        flexShrink: 0,
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        zIndex: 50,
+        transform: menuOpen ? 'translateX(0)' : 'translateX(-100%)',
+        transition: 'transform 0.25s ease',
+      }}>
+        <div style={{ padding:'18px 16px', borderBottom:'1px solid #1e1d2e', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <div style={{ width:28, height:28, borderRadius:8, background:'linear-gradient(135deg,#4338ca,#7c3aed)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:700, fontSize:14 }}>L</div>
+            <span style={{ color:'#e2e8f0', fontWeight:700, fontSize:15 }}>LucroDash</span>
+          </div>
+          <button onClick={() => setMenuOpen(false)} style={{ background:'transparent', border:'none', color:'#64748b', fontSize:18, cursor:'pointer', padding:4 }}>✕</button>
         </div>
         <nav style={{ flex:1, padding:'10px 0' }}>
           {PAGES.map(p => (
-            <button key={p} onClick={() => setPage(p)} style={{ display:'flex', alignItems:'center', gap:10, width:'100%', padding:'9px 16px', background:page===p?'rgba(99,102,241,0.15)':'transparent', border:'none', borderLeft:page===p?'3px solid #6366f1':'3px solid transparent', color:page===p?'#a5b4fc':'#64748b', fontSize:13, fontWeight:page===p?600:400 }}>
+            <button key={p} onClick={() => { setPage(p); setMenuOpen(false) }} style={{ display:'flex', alignItems:'center', gap:10, width:'100%', padding:'9px 16px', background:page===p?'rgba(99,102,241,0.15)':'transparent', border:'none', borderLeft:page===p?'3px solid #6366f1':'3px solid transparent', color:page===p?'#a5b4fc':'#64748b', fontSize:13, fontWeight:page===p?600:400 }}>
               <span style={{ fontSize:14, minWidth:16 }}>{ICONS[p]}</span>
               {LABELS[p]}
             </button>
@@ -485,13 +511,28 @@ export default function App() {
           <div><div style={{ color:'#e2e8f0', fontSize:12, fontWeight:600 }}>Lucas</div><div style={{ color:'#64748b', fontSize:11 }}>Pelos Pets</div></div>
         </div>
       </aside>
-      <main style={{ flex:1, overflowY:'auto', padding:'22px 22px 48px' }}>
-        {page==='dashboard' && <DashPage/>}
-        {page==='produtos' && <ProdutosPage/>}
-        {page==='taxas' && <TaxasPage/>}
-        {page==='meta-ads' && <MetaAdsPage/>}
-        {page==='lancamentos' && <LancamentosPage/>}
-      </main>
+
+      {/* Conteúdo principal */}
+      <div style={{ flex:1, display:'flex', flexDirection:'column', minWidth:0 }}>
+
+        {/* Header mobile com botão ☰ */}
+        <header style={{ position:'sticky', top:0, zIndex:30, background:'#0f0e17', borderBottom:'1px solid #1e1d2e', padding:'12px 16px', display:'flex', alignItems:'center', gap:12 }}>
+          <button onClick={() => setMenuOpen(true)} style={{ background:'transparent', border:'none', color:'#a5b4fc', fontSize:22, cursor:'pointer', padding:4, lineHeight:1 }}>☰</button>
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <div style={{ width:24, height:24, borderRadius:6, background:'linear-gradient(135deg,#4338ca,#7c3aed)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:700, fontSize:12 }}>L</div>
+            <span style={{ color:'#e2e8f0', fontWeight:700, fontSize:14 }}>LucroDash</span>
+          </div>
+          <span style={{ fontSize:13, color:'#64748b', marginLeft:'auto' }}>{LABELS[page]}</span>
+        </header>
+
+        <main style={{ flex:1, overflowY:'auto', padding:'18px 16px 48px' }}>
+          {page==='dashboard' && <DashPage/>}
+          {page==='produtos' && <ProdutosPage/>}
+          {page==='taxas' && <TaxasPage/>}
+          {page==='meta-ads' && <MetaAdsPage/>}
+          {page==='lancamentos' && <LancamentosPage/>}
+        </main>
+      </div>
     </div>
   )
 }
