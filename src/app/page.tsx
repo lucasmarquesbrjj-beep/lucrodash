@@ -195,6 +195,77 @@ function Ranking() {
   )
 }
 
+function LoginPage({ onLogin }: { onLogin: (nome: string) => void }) {
+  const [email, setEmail] = useState('')
+  const [senha, setSenha] = useState('')
+  const [erro, setErro] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const handleLogin = async () => {
+    setLoading(true)
+    setErro('')
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, senha }),
+    })
+    const data = await res.json()
+    if (data.success) {
+      localStorage.setItem('lucrodash_user', data.nome)
+      onLogin(data.nome)
+    } else {
+      setErro('Email ou senha incorretos')
+    }
+    setLoading(false)
+  }
+
+  return (
+    <div style={{ minHeight:'100vh', background:'#0a0918', display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
+      <div style={{ width:'100%', maxWidth:380 }}>
+        <div style={{ textAlign:'center', marginBottom:32 }}>
+          <div style={{ width:52, height:52, borderRadius:14, background:'linear-gradient(135deg,#4338ca,#7c3aed)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:700, fontSize:22, margin:'0 auto 16px' }}>L</div>
+          <h1 style={{ fontSize:22, fontWeight:700, color:'#f1f5f9', margin:0 }}>LucroDash</h1>
+          <p style={{ fontSize:13, color:'#64748b', marginTop:6 }}>Pelos Pets · Controle de lucro</p>
+        </div>
+        <div style={{ background:'#141320', border:'1px solid #1e1d2e', borderRadius:16, padding:28 }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+            <div>
+              <label style={{ fontSize:12, color:'#64748b', display:'block', marginBottom:6 }}>Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="seu@email.com"
+                style={{ width:'100%', padding:'10px 14px', background:'#0f0e17', border:'1px solid #2d2d3d', borderRadius:10, color:'#f1f5f9', fontSize:14, boxSizing:'border-box' }}
+                onKeyDown={e => e.key === 'Enter' && handleLogin()}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize:12, color:'#64748b', display:'block', marginBottom:6 }}>Senha</label>
+              <input
+                type="password"
+                value={senha}
+                onChange={e => setSenha(e.target.value)}
+                placeholder="••••••••"
+                style={{ width:'100%', padding:'10px 14px', background:'#0f0e17', border:'1px solid #2d2d3d', borderRadius:10, color:'#f1f5f9', fontSize:14, boxSizing:'border-box' }}
+                onKeyDown={e => e.key === 'Enter' && handleLogin()}
+              />
+            </div>
+            {erro && <div style={{ fontSize:12, color:'#f87171', textAlign:'center' }}>{erro}</div>}
+            <button
+              onClick={handleLogin}
+              disabled={loading}
+              style={{ padding:'12px', borderRadius:10, background:'linear-gradient(135deg,#4338ca,#7c3aed)', border:'none', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', opacity: loading ? 0.7 : 1 }}
+            >
+              {loading ? '⏳ Entrando...' : 'Entrar'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function DashPage({ taxas }: { taxas: any }) {
   const [filter, setFilter] = useState('today')
   const [data, setData] = useState<any>(null)
@@ -387,65 +458,6 @@ function TaxasPage({ taxas, onSave }: { taxas: any, onSave: (t: any) => void }) 
   )
 }
 
-function ProdutosPage() {
-  const [prods, setProds] = useState(PRODS.map(p => ({ ...p, editing:false, nc:'' })))
-  const [q, setQ] = useState('')
-  const filtered = prods.filter(p => p.name.toLowerCase().includes(q.toLowerCase()) || p.sku.toLowerCase().includes(q.toLowerCase()))
-  return (
-    <div>
-      <h1 style={{ fontSize:20, fontWeight:700, color:'#f1f5f9', marginBottom:4 }}>Produtos</h1>
-      <p style={{ fontSize:12, color:'#64748b', marginBottom:16 }}>Gerencie custos por SKU</p>
-      <div style={{ display:'flex', gap:10, marginBottom:14 }}>
-        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar produto ou SKU..." style={{ flex:1, maxWidth:320 }}/>
-        <button style={{ padding:'8px 18px', borderRadius:8, background:'linear-gradient(135deg,#4338ca,#7c3aed)', border:'none', color:'#fff', fontSize:13, fontWeight:600 }}>+ Novo</button>
-      </div>
-      <div style={{ background:'#141320', border:'1px solid #1e1d2e', borderRadius:14, overflow:'hidden' }}>
-        <table style={{ width:'100%', borderCollapse:'collapse' }}>
-          <thead>
-            <tr style={{ background:'#0f0e17' }}>
-              {['Produto','SKU','Custo','Preço','Margem',''].map(h => (
-                <th key={h} style={{ fontSize:11, color:'#475569', fontWeight:600, textAlign:'left', padding:'10px 14px', borderBottom:'1px solid #1e1d2e' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map(p => {
-              const m = (((p.price-p.cost)/p.price)*100).toFixed(1)
-              return (
-                <tr key={p.id} style={{ borderBottom:'1px solid #1a1929' }}>
-                  <td style={{ padding:'12px 14px' }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                      <span style={{ fontSize:18 }}>{p.img}</span>
-                      <span style={{ fontSize:13, fontWeight:600, color:'#e2e8f0' }}>{p.name}</span>
-                    </div>
-                  </td>
-                  <td style={{ padding:'12px 14px', fontSize:11, color:'#6366f1', fontFamily:'monospace', fontWeight:600 }}>{p.sku}</td>
-                  <td style={{ padding:'12px 14px' }}>
-                    {p.editing ? (
-                      <div style={{ display:'flex', gap:6, alignItems:'center' }}>
-                        <input value={p.nc} onChange={e => setProds(prev => prev.map(x => x.id===p.id ? {...x,nc:e.target.value} : x))} style={{ width:80, padding:'4px 8px' }} autoFocus/>
-                        <button onClick={() => setProds(prev => prev.map(x => x.id===p.id ? {...x,cost:parseFloat(x.nc)||x.cost,editing:false} : x))} style={{ padding:'4px 8px', borderRadius:6, background:'#4338ca', border:'none', color:'#fff', fontSize:12 }}>✓</button>
-                        <button onClick={() => setProds(prev => prev.map(x => x.id===p.id ? {...x,editing:false} : x))} style={{ padding:'4px 8px', borderRadius:6, background:'transparent', border:'1px solid #2d2d3d', color:'#64748b', fontSize:12 }}>✕</button>
-                      </div>
-                    ) : <span style={{ fontSize:13, fontWeight:700, color:'#f87171' }}>{fmt(p.cost)}</span>}
-                  </td>
-                  <td style={{ padding:'12px 14px', fontSize:13, fontWeight:600, color:'#34d399' }}>{fmt(p.price)}</td>
-                  <td style={{ padding:'12px 14px' }}>
-                    <span style={{ fontSize:11, fontWeight:600, padding:'2px 7px', borderRadius:5, background:parseFloat(m)>70?'rgba(52,211,153,0.15)':'rgba(251,191,36,0.15)', color:parseFloat(m)>70?'#34d399':'#fbbf24' }}>{m}%</span>
-                  </td>
-                  <td style={{ padding:'12px 14px' }}>
-                    <button onClick={() => setProds(prev => prev.map(x => x.id===p.id ? {...x,editing:true,nc:String(x.cost)} : x))} style={{ padding:'4px 10px', borderRadius:6, background:'transparent', border:'1px solid #2d2d3d', color:'#a5b4fc', fontSize:11 }}>✎ Editar custo</button>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  )
-}
-
 function MetaAdsPage({ taxas, onSave }: { taxas: any, onSave: (t: any) => void }) {
   const [valor, setValor] = useState(String(taxas.meta_ads_hoje || ''))
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
@@ -547,10 +559,26 @@ export default function App() {
   const [page, setPage] = useState<Page>('dashboard')
   const [menuOpen, setMenuOpen] = useState(false)
   const [taxas, setTaxas] = useState<any>({})
+  const [user, setUser] = useState<string | null>(null)
+  const [checkingAuth, setCheckingAuth] = useState(true)
 
   useEffect(() => {
-    fetch('/api/taxas').then(r => r.json()).then(setTaxas)
+    const saved = localStorage.getItem('lucrodash_user')
+    if (saved) setUser(saved)
+    setCheckingAuth(false)
   }, [])
+
+  useEffect(() => {
+    if (user) fetch('/api/taxas').then(r => r.json()).then(setTaxas)
+  }, [user])
+
+  const handleLogout = () => {
+    localStorage.removeItem('lucrodash_user')
+    setUser(null)
+  }
+
+  if (checkingAuth) return <div style={{ minHeight:'100vh', background:'#0a0918' }}/>
+  if (!user) return <LoginPage onLogin={setUser}/>
 
   return (
     <div style={{ display:'flex', minHeight:'100vh', background:'#0a0918' }}>
@@ -573,9 +601,12 @@ export default function App() {
             </button>
           ))}
         </nav>
-        <div style={{ padding:'14px 16px', borderTop:'1px solid #1e1d2e', display:'flex', alignItems:'center', gap:8 }}>
-          <div style={{ width:26, height:26, borderRadius:'50%', background:'linear-gradient(135deg,#4338ca,#7c3aed)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, color:'#fff', fontWeight:700 }}>LP</div>
-          <div><div style={{ color:'#e2e8f0', fontSize:12, fontWeight:600 }}>Lucas</div><div style={{ color:'#64748b', fontSize:11 }}>Pelos Pets</div></div>
+        <div style={{ padding:'14px 16px', borderTop:'1px solid #1e1d2e' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
+            <div style={{ width:26, height:26, borderRadius:'50%', background:'linear-gradient(135deg,#4338ca,#7c3aed)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, color:'#fff', fontWeight:700 }}>{user[0].toUpperCase()}</div>
+            <div><div style={{ color:'#e2e8f0', fontSize:12, fontWeight:600 }}>{user}</div><div style={{ color:'#64748b', fontSize:11 }}>Pelos Pets</div></div>
+          </div>
+          <button onClick={handleLogout} style={{ width:'100%', padding:'6px', borderRadius:8, background:'transparent', border:'1px solid #2d2d3d', color:'#f87171', fontSize:11, cursor:'pointer' }}>Sair</button>
         </div>
       </aside>
       <div style={{ flex:1, display:'flex', flexDirection:'column', minWidth:0 }}>
