@@ -3,30 +3,44 @@ import { NextRequest, NextResponse } from 'next/server';
 const SHOP = 'pelos-pets-9091.myshopify.com';
 const TOKEN = process.env.SHOPIFY_ACCESS_TOKEN!;
 
+// Retorna data no fuso de São Paulo
+function nowBrasilia() {
+  return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+}
+
+function startOfDayBrasilia(date: Date) {
+  const d = new Date(date.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+  d.setHours(0, 0, 0, 0);
+  // Converter de volta para UTC com offset -3
+  return new Date(d.getTime() + (d.getTimezoneOffset() * 60000));
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const filter = searchParams.get('filter') || 'today';
 
-  const now = new Date();
+  const now = nowBrasilia();
   let created_at_min: string;
-  let created_at_max: string = now.toISOString();
+  let created_at_max: string = new Date().toISOString();
 
   if (filter === 'today') {
     const start = new Date(now); start.setHours(0,0,0,0);
-    created_at_min = start.toISOString();
+    // Adiciona offset de -3h (Brasília) para converter para UTC correto
+    created_at_min = new Date(start.getTime() + 3 * 60 * 60 * 1000).toISOString();
   } else if (filter === 'yesterday') {
     const start = new Date(now); start.setDate(start.getDate()-1); start.setHours(0,0,0,0);
     const end = new Date(now); end.setHours(0,0,0,0);
-    created_at_min = start.toISOString(); created_at_max = end.toISOString();
+    created_at_min = new Date(start.getTime() + 3 * 60 * 60 * 1000).toISOString();
+    created_at_max = new Date(end.getTime() + 3 * 60 * 60 * 1000).toISOString();
   } else if (filter === '7d') {
     const start = new Date(now); start.setDate(start.getDate()-7); start.setHours(0,0,0,0);
-    created_at_min = start.toISOString();
+    created_at_min = new Date(start.getTime() + 3 * 60 * 60 * 1000).toISOString();
   } else if (filter === '30d') {
     const start = new Date(now); start.setDate(start.getDate()-30); start.setHours(0,0,0,0);
-    created_at_min = start.toISOString();
+    created_at_min = new Date(start.getTime() + 3 * 60 * 60 * 1000).toISOString();
   } else {
     const start = new Date(now.getFullYear(), now.getMonth(), 1);
-    created_at_min = start.toISOString();
+    created_at_min = new Date(start.getTime() + 3 * 60 * 60 * 1000).toISOString();
   }
 
   try {
@@ -71,7 +85,7 @@ export async function GET(request: NextRequest) {
 
     const hourly = Array(24).fill(0);
     pagos.forEach((o: any) => {
-      const h = new Date(o.created_at).getHours();
+      const h = new Date(new Date(o.created_at).toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' })).getHours();
       hourly[h] += parseFloat(o.total_price || '0');
     });
 
