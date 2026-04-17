@@ -21,13 +21,12 @@ const PRODS = [
   { id: 4, name: 'Sérum Vitamina C', sku: 'SER-004', cost: 22.0, price: 127, sales: 203, revenue: 25781, profit: 11230, cpa: 14.2, img: '✨' },
 ]
 
-const card = (label: string, value: string, color: string, sub?: string, trend?: number) => (
+const card = (label: string, value: string, color: string, sub?: string) => (
   <div style={{ background:'#141320', border:'1px solid #1e1d2e', borderRadius:14, padding:'16px 18px', position:'relative', overflow:'hidden' }}>
     <div style={{ position:'absolute', top:0, left:0, right:0, height:2, background:`linear-gradient(90deg,${color},transparent)` }}/>
     <div style={{ fontSize:11, color:'#64748b', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.4px', marginBottom:6 }}>{label}</div>
     <div style={{ fontSize:22, fontWeight:700, color:'#f1f5f9', letterSpacing:'-0.5px' }}>{value}</div>
     {sub && <div style={{ fontSize:12, color:'#64748b', marginTop:3 }}>{sub}</div>}
-    {trend !== undefined && <div style={{ fontSize:11, color:trend>0?'#34d399':'#f87171', fontWeight:600, marginTop:3 }}>{trend>0?'▲':'▼'} {Math.abs(trend).toFixed(1)}% vs ontem</div>}
   </div>
 )
 
@@ -45,12 +44,59 @@ function MiniRows({ title, rows, color='#6366f1' }: { title:string, rows:{label:
   )
 }
 
+function LucroComposicao({ fat, taxas, pedidos }: { fat:number, taxas:any, pedidos:number }) {
+  const diasMes = new Date(new Date().getFullYear(), new Date().getMonth()+1, 0).getDate()
+  const checkoutFixoDiario = (taxas.checkout_fixo_mensal || 0) / diasMes
+  const tCheckout = fat * (taxas.checkout_pct || 0) / 100 + checkoutFixoDiario
+  const tGateway = fat * (taxas.gateway_pct || 0) / 100
+  const tImposto = fat * (taxas.imposto_pct || 0) / 100
+  const tCustoProd = pedidos * (taxas.custo_produto || 0)
+  const tFrete = pedidos * (taxas.frete_fixo || 0)
+  const metaAds = taxas.meta_ads_hoje || 0
+  const googleAds = taxas.google_ads_hoje || 0
+  const tImpostoMeta = metaAds * (taxas.imposto_meta_pct || 0) / 100
+  const totalCustos = tCheckout + tGateway + tImposto + tCustoProd + tFrete + metaAds + googleAds + tImpostoMeta
+  const lucro = fat - totalCustos
+  const margem = fat > 0 ? (lucro / fat) * 100 : 0
+
+  const row = (label: string, value: number, positive = false) => (
+    <div style={{ display:'flex', justifyContent:'space-between', padding:'5px 0', borderBottom:'1px solid #1a1929' }}>
+      <span style={{ fontSize:12, color:'#94a3b8' }}>{label}</span>
+      <span style={{ fontSize:12, fontWeight:600, color: positive ? '#34d399' : '#f87171' }}>
+        {positive ? '+' : '-'} {fmt(Math.abs(value))}
+      </span>
+    </div>
+  )
+
+  return (
+    <div style={{ background:'#141320', border:'1px solid #1e1d2e', borderRadius:14, padding:'16px 18px' }}>
+      <div style={{ fontSize:11, fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:12 }}>Composição do lucro</div>
+      {row('Faturamento pago', fat, true)}
+      {row(`Taxa checkout (${taxas.checkout_pct||0}% + fixo diário)`, tCheckout)}
+      {row(`Taxa gateway (${taxas.gateway_pct||0}%)`, tGateway)}
+      {row(`Impostos (${taxas.imposto_pct||0}%)`, tImposto)}
+      {row(`Custo produto (${pedidos}x R$${taxas.custo_produto||0})`, tCustoProd)}
+      {row(`Frete (${pedidos}x R$${taxas.frete_fixo||0})`, tFrete)}
+      {row('Meta Ads', metaAds)}
+      {row(`Imposto Meta (${taxas.imposto_meta_pct||0}%)`, tImpostoMeta)}
+      {row('Google Ads', googleAds)}
+      <div style={{ display:'flex', justifyContent:'space-between', padding:'8px 0', marginTop:4, borderTop:'1px solid #2d2d3d' }}>
+        <span style={{ fontSize:13, fontWeight:700, color:'#f1f5f9' }}>Lucro líquido</span>
+        <div style={{ textAlign:'right' }}>
+          <div style={{ fontSize:14, fontWeight:700, color: lucro > 0 ? '#34d399' : '#f87171' }}>{fmt(lucro)}</div>
+          <div style={{ fontSize:11, color:'#64748b' }}>Margem: {margem.toFixed(1)}%</div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function HourBar({ hourly }: { hourly: number[] }) {
   const max = Math.max(...hourly, 1)
   const now = new Date().getHours()
   return (
     <div style={{ background:'#141320', border:'1px solid #1e1d2e', borderRadius:14, padding:18 }}>
-      <div style={{ fontSize:11, fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:12 }}>Vendas por Hora</div>
+      <div style={{ fontSize:11, fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:12 }}>Vendas por hora</div>
       <div style={{ display:'flex', alignItems:'flex-end', gap:2, height:80 }}>
         {hourly.map((v,i) => (
           <div key={i} title={`${i}h: ${fmt(v)}`} style={{ flex:1, height:`${Math.max((v/max)*100,3)}%`, background:i===now?'#6366f1':`rgba(99,102,241,${0.15+(v/max)*0.5})`, borderRadius:'2px 2px 0 0' }}/>
@@ -71,7 +117,7 @@ function MetaMes({ atual, meta }: { atual:number, meta:number }) {
   return (
     <div style={{ background:'#141320', border:'1px solid #1e1d2e', borderRadius:14, padding:18 }}>
       <div style={{ display:'flex', justifyContent:'space-between', marginBottom:10 }}>
-        <span style={{ fontSize:11, fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px' }}>Meta do Mês</span>
+        <span style={{ fontSize:11, fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px' }}>Meta do mês</span>
         <span style={{ fontSize:12, color:'#a5b4fc', fontWeight:600 }}>{pct.toFixed(1)}%</span>
       </div>
       <div style={{ fontSize:20, fontWeight:700, color:'#f1f5f9' }}>{fmt(atual)}</div>
@@ -99,440 +145,3 @@ function Ranking() {
   return (
     <div style={{ background:'#141320', border:'1px solid #1e1d2e', borderRadius:14, padding:18 }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14, flexWrap:'wrap', gap:8 }}>
-        <span style={{ fontSize:11, fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px' }}>Ranking de Produtos</span>
-        <div style={{ display:'flex', gap:4 }}>
-          {[['revenue','Fat.'],['profit','Lucro'],['sales','Qtd'],['margin','Margem'],['cpa','CPA']].map(([v,l]) => (
-            <button key={v} onClick={() => setSort(v)} style={{ padding:'3px 9px', borderRadius:6, fontSize:11, border:sort===v?'1px solid #6366f1':'1px solid #2d2d3d', background:sort===v?'rgba(99,102,241,0.2)':'transparent', color:sort===v?'#a5b4fc':'#64748b' }}>{l}</button>
-          ))}
-        </div>
-      </div>
-      <div style={{ overflowX:'auto' }}>
-        <table style={{ width:'100%', borderCollapse:'collapse', minWidth:560 }}>
-          <thead>
-            <tr style={{ borderBottom:'1px solid #1e1d2e' }}>
-              {['#','Produto','Vendas','Faturamento','Lucro','Margem','CPA'].map(h => (
-                <th key={h} style={{ fontSize:11, color:'#475569', fontWeight:600, textAlign:'left', padding:'0 10px 8px 0' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((p,i) => {
-              const m = ((p.profit/p.revenue)*100).toFixed(1)
-              return (
-                <tr key={p.id} style={{ borderBottom:'1px solid #1a1929' }}>
-                  <td style={{ padding:'10px 10px 10px 0' }}>
-                    <div style={{ width:20, height:20, borderRadius:4, background:i===0?'rgba(251,191,36,0.15)':'rgba(99,102,241,0.1)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, color:i===0?'#fbbf24':'#6366f1' }}>{i+1}</div>
-                  </td>
-                  <td style={{ padding:'10px 14px 10px 0' }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                      <span style={{ fontSize:16 }}>{p.img}</span>
-                      <div>
-                        <div style={{ fontSize:12, fontWeight:600, color:'#e2e8f0' }}>{p.name}</div>
-                        <div style={{ fontSize:10, color:'#475569', fontFamily:'monospace' }}>{p.sku}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td style={{ padding:'10px 14px 10px 0', fontSize:12, color:'#94a3b8' }}>{p.sales}</td>
-                  <td style={{ padding:'10px 14px 10px 0', fontSize:12, fontWeight:600, color:'#e2e8f0' }}>{fmt(p.revenue)}</td>
-                  <td style={{ padding:'10px 14px 10px 0', fontSize:12, fontWeight:700, color:'#34d399' }}>{fmt(p.profit)}</td>
-                  <td style={{ padding:'10px 14px 10px 0' }}>
-                    <span style={{ fontSize:11, fontWeight:600, padding:'2px 7px', borderRadius:5, background:parseFloat(m)>25?'rgba(52,211,153,0.15)':'rgba(251,191,36,0.15)', color:parseFloat(m)>25?'#34d399':'#fbbf24' }}>{m}%</span>
-                  </td>
-                  <td style={{ padding:'10px 0', fontSize:12, color:'#94a3b8' }}>{fmt(p.cpa)}</td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  )
-}
-
-function DashPage() {
-  const [filter, setFilter] = useState('today')
-  const [data, setData] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    setLoading(true)
-    setError('')
-    fetch(`/api/shopify/orders?filter=${filter}`)
-      .then(r => r.json())
-      .then(d => { setData(d); setLoading(false) })
-      .catch(e => { setError(e.message); setLoading(false) })
-  }, [filter])
-
-  const d = data || {}
-  const hourly = d.hourly || Array(24).fill(0)
-  const states = d.states || []
-
-  return (
-    <div>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20, flexWrap:'wrap', gap:10 }}>
-        <div>
-          <h1 style={{ fontSize:20, fontWeight:700, color:'#f1f5f9' }}>Dashboard</h1>
-          <p style={{ fontSize:12, color:'#64748b', marginTop:2 }}>Pelos Pets · Visão geral da operação</p>
-        </div>
-        <div style={{ display:'flex', gap:5, flexWrap:'wrap' }}>
-          {[['today','Hoje'],['yesterday','Ontem'],['7d','7 dias'],['30d','30 dias'],['month','Mês']].map(([v,l]) => (
-            <button key={v} onClick={() => setFilter(v)} style={{ padding:'5px 12px', borderRadius:20, fontSize:12, border:filter===v?'1.5px solid #6366f1':'1px solid #2d2d3d', background:filter===v?'rgba(99,102,241,0.15)':'transparent', color:filter===v?'#a5b4fc':'#64748b' }}>{l}</button>
-          ))}
-        </div>
-      </div>
-
-      {loading && <div style={{ textAlign:'center', padding:60, color:'#64748b', fontSize:14 }}>⏳ Carregando dados da Shopify...</div>}
-      {error && <div style={{ textAlign:'center', padding:40, color:'#f87171', fontSize:13 }}>❌ Erro: {error}</div>}
-
-      {!loading && !error && (
-        <>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(155px,1fr))', gap:10, marginBottom:12 }}>
-            {card('Faturamento Pago', fmt(d.faturamentoPago||0), '#6366f1', `Bruto: ${fmt(d.faturamentoBruto||0)}`)}
-            {card('Pedidos Pagos', fmt(d.pedidosPagos||0,'num'), '#a78bfa', `de ${fmt(d.pedidosGerados||0,'num')} gerados`)}
-            {card('Ticket Médio', fmt(d.ticketMedio||0), '#fbbf24')}
-            {card('Descontos', fmt(d.descontos||0), '#f87171')}
-            {card('Frete', fmt(d.frete||0), '#34d399')}
-          </div>
-
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))', gap:10, marginBottom:12 }}>
-            <MiniRows title="Pedidos" color="#a5b4fc" rows={[
-              { label:'Gerados', value:fmt(d.pedidosGerados||0,'num') },
-              { label:'Pendentes', value:fmt(d.pedidosPendentes||0,'num') },
-              { label:'Cartão aprovado', value:fmt(d.cartaoAprovado||0,'num'), hi:true },
-              { label:'Cartão pendente', value:fmt(d.cartaoPendente||0,'num') },
-              { label:'Boleto pago', value:fmt(d.boletoPago||0,'num'), hi:true },
-              { label:'Boleto pendente', value:fmt(d.boletoPendente||0,'num') },
-              { label:'PIX pago', value:fmt(d.pixPago||0,'num'), hi:true },
-              { label:'PIX pendente', value:fmt(d.pixPendente||0,'num') },
-            ]}/>
-            <MiniRows title="Resumo Financeiro" color="#34d399" rows={[
-              { label:'Faturamento Pago', value:fmt(d.faturamentoPago||0), hi:true },
-              { label:'Faturamento Bruto', value:fmt(d.faturamentoBruto||0) },
-              { label:'Ticket Médio', value:fmt(d.ticketMedio||0) },
-              { label:'Descontos', value:fmt(d.descontos||0) },
-              { label:'Frete', value:fmt(d.frete||0) },
-            ]}/>
-            <MiniRows title="Pedidos por Método" color="#fbbf24" rows={[
-              { label:'Cartão aprovado', value:fmt(d.cartaoAprovado||0,'num'), hi:true },
-              { label:'Boleto pago', value:fmt(d.boletoPago||0,'num'), hi:true },
-              { label:'PIX pago', value:fmt(d.pixPago||0,'num'), hi:true },
-              { label:'Cartão pendente', value:fmt(d.cartaoPendente||0,'num') },
-              { label:'Boleto pendente', value:fmt(d.boletoPendente||0,'num') },
-              { label:'PIX pendente', value:fmt(d.pixPendente||0,'num') },
-            ]}/>
-          </div>
-
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))', gap:10, marginBottom:12 }}>
-            <HourBar hourly={hourly}/>
-            <MetaMes atual={d.faturamentoPago||0} meta={250000}/>
-          </div>
-
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))', gap:10 }}>
-            <div style={{ background:'#141320', border:'1px solid #1e1d2e', borderRadius:14, padding:18 }}>
-              <div style={{ fontSize:11, fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:12 }}>Vendas por Estado</div>
-              {states.length === 0 && <div style={{ fontSize:12, color:'#475569' }}>Sem dados</div>}
-              {states.map((s: any, i: number) => (
-                <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'7px 0', borderBottom:i<states.length-1?'1px solid #1a1929':'none' }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                    <span style={{ fontSize:12, fontWeight:700, color:'#a5b4fc', minWidth:28 }}>{s.state}</span>
-                    <div style={{ height:3, width:`${s.pct*1.6}px`, background:'linear-gradient(90deg,#4338ca,#7c3aed)', borderRadius:2 }}/>
-                  </div>
-                  <div style={{ textAlign:'right' }}>
-                    <div style={{ fontSize:12, fontWeight:600, color:'#e2e8f0' }}>{fmt(s.revenue)}</div>
-                    <div style={{ fontSize:10, color:'#64748b' }}>{s.orders} pedidos</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <Ranking/>
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
-
-function ProdutosPage() {
-  const [prods, setProds] = useState(PRODS.map(p => ({ ...p, editing:false, nc:'' })))
-  const [q, setQ] = useState('')
-  const filtered = prods.filter(p => p.name.toLowerCase().includes(q.toLowerCase()) || p.sku.toLowerCase().includes(q.toLowerCase()))
-  return (
-    <div>
-      <h1 style={{ fontSize:20, fontWeight:700, color:'#f1f5f9', marginBottom:4 }}>Produtos</h1>
-      <p style={{ fontSize:12, color:'#64748b', marginBottom:16 }}>Gerencie custos por SKU</p>
-      <div style={{ display:'flex', gap:10, marginBottom:14 }}>
-        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar produto ou SKU..." style={{ flex:1, maxWidth:320 }}/>
-        <button style={{ padding:'8px 18px', borderRadius:8, background:'linear-gradient(135deg,#4338ca,#7c3aed)', border:'none', color:'#fff', fontSize:13, fontWeight:600 }}>+ Novo</button>
-      </div>
-      <div style={{ background:'#141320', border:'1px solid #1e1d2e', borderRadius:14, overflow:'hidden' }}>
-        <table style={{ width:'100%', borderCollapse:'collapse' }}>
-          <thead>
-            <tr style={{ background:'#0f0e17' }}>
-              {['Produto','SKU','Custo','Preço','Margem',''].map(h => (
-                <th key={h} style={{ fontSize:11, color:'#475569', fontWeight:600, textAlign:'left', padding:'10px 14px', borderBottom:'1px solid #1e1d2e' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map(p => {
-              const m = (((p.price-p.cost)/p.price)*100).toFixed(1)
-              return (
-                <tr key={p.id} style={{ borderBottom:'1px solid #1a1929' }}>
-                  <td style={{ padding:'12px 14px' }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                      <span style={{ fontSize:18 }}>{p.img}</span>
-                      <span style={{ fontSize:13, fontWeight:600, color:'#e2e8f0' }}>{p.name}</span>
-                    </div>
-                  </td>
-                  <td style={{ padding:'12px 14px', fontSize:11, color:'#6366f1', fontFamily:'monospace', fontWeight:600 }}>{p.sku}</td>
-                  <td style={{ padding:'12px 14px' }}>
-                    {p.editing ? (
-                      <div style={{ display:'flex', gap:6, alignItems:'center' }}>
-                        <input value={p.nc} onChange={e => setProds(prev => prev.map(x => x.id===p.id ? {...x,nc:e.target.value} : x))} style={{ width:80, padding:'4px 8px' }} autoFocus/>
-                        <button onClick={() => setProds(prev => prev.map(x => x.id===p.id ? {...x,cost:parseFloat(x.nc)||x.cost,editing:false} : x))} style={{ padding:'4px 8px', borderRadius:6, background:'#4338ca', border:'none', color:'#fff', fontSize:12 }}>✓</button>
-                        <button onClick={() => setProds(prev => prev.map(x => x.id===p.id ? {...x,editing:false} : x))} style={{ padding:'4px 8px', borderRadius:6, background:'transparent', border:'1px solid #2d2d3d', color:'#64748b', fontSize:12 }}>✕</button>
-                      </div>
-                    ) : <span style={{ fontSize:13, fontWeight:700, color:'#f87171' }}>{fmt(p.cost)}</span>}
-                  </td>
-                  <td style={{ padding:'12px 14px', fontSize:13, fontWeight:600, color:'#34d399' }}>{fmt(p.price)}</td>
-                  <td style={{ padding:'12px 14px' }}>
-                    <span style={{ fontSize:11, fontWeight:600, padding:'2px 7px', borderRadius:5, background:parseFloat(m)>70?'rgba(52,211,153,0.15)':'rgba(251,191,36,0.15)', color:parseFloat(m)>70?'#34d399':'#fbbf24' }}>{m}%</span>
-                  </td>
-                  <td style={{ padding:'12px 14px' }}>
-                    <button onClick={() => setProds(prev => prev.map(x => x.id===p.id ? {...x,editing:true,nc:String(x.cost)} : x))} style={{ padding:'4px 10px', borderRadius:6, background:'transparent', border:'1px solid #2d2d3d', color:'#a5b4fc', fontSize:11 }}>✎ Editar custo</button>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  )
-}
-
-function TaxasPage() {
-  const [t, setT] = useState({ checkoutPct:1.99, cartaoPct:2.49, pixPct:0.99, boletoFixo:3.5, taxaFixa:0, taxaCartao:0, impostoPct:10, impostoMeta:10, fretePadrao:18.9 })
-  const [saved, setSaved] = useState(false)
-  const f = (label: string, k: keyof typeof t, suf='%', hint='') => (
-    <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-      <label style={{ fontSize:11, color:'#64748b', fontWeight:500 }}>{label}</label>
-      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-        <input type="number" step="0.01" value={t[k]} onChange={e => setT(p => ({...p,[k]:parseFloat(e.target.value)||0}))} style={{ width:100 }}/>
-        <span style={{ fontSize:12, color:'#64748b' }}>{suf}</span>
-      </div>
-      {hint && <span style={{ fontSize:10, color:'#475569' }}>{hint}</span>}
-    </div>
-  )
-  return (
-    <div>
-      <h1 style={{ fontSize:20, fontWeight:700, color:'#f1f5f9', marginBottom:4 }}>Taxas & Tarifas</h1>
-      <p style={{ fontSize:12, color:'#64748b', marginBottom:16 }}>Configure tudo que impacta seu lucro</p>
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(250px,1fr))', gap:14 }}>
-        <div style={{ background:'#141320', border:'1px solid #1e1d2e', borderRadius:14, padding:20 }}>
-          <div style={{ fontSize:12, fontWeight:700, color:'#a5b4fc', marginBottom:16, paddingBottom:10, borderBottom:'1px solid #1e1d2e' }}>Taxas de Pagamento</div>
-          <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-            {f('Taxa Checkout','checkoutPct','%','Por venda concluída')}
-            {f('Taxa Cartão','cartaoPct','%','Sobre valor aprovado')}
-            {f('Taxa PIX','pixPct','%','Sobre valor recebido')}
-            {f('Taxa Boleto','boletoFixo','R$','Fixo por boleto pago')}
-          </div>
-        </div>
-        <div style={{ background:'#141320', border:'1px solid #1e1d2e', borderRadius:14, padding:20 }}>
-          <div style={{ fontSize:12, fontWeight:700, color:'#fbbf24', marginBottom:16, paddingBottom:10, borderBottom:'1px solid #1e1d2e' }}>Taxas Fixas</div>
-          <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-            {f('Taxa fixa por pedido','taxaFixa','R$')}
-            {f('Taxa fixa cartão','taxaCartao','R$')}
-            {f('Frete padrão','fretePadrao','R$','Quando sem frete real')}
-          </div>
-        </div>
-        <div style={{ background:'#141320', border:'1px solid #1e1d2e', borderRadius:14, padding:20 }}>
-          <div style={{ fontSize:12, fontWeight:700, color:'#f87171', marginBottom:16, paddingBottom:10, borderBottom:'1px solid #1e1d2e' }}>Impostos</div>
-          <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-            {f('Imposto s/ Faturamento','impostoPct','%','Sobre receita paga')}
-            {f('Imposto s/ Ads Meta','impostoMeta','%','Sobre gasto Meta Ads')}
-          </div>
-        </div>
-      </div>
-      <div style={{ marginTop:14, display:'flex', justifyContent:'flex-end' }}>
-        <button onClick={() => { setSaved(true); setTimeout(() => setSaved(false), 2000) }} style={{ padding:'9px 24px', borderRadius:10, fontSize:13, fontWeight:700, border:'none', background:saved?'rgba(52,211,153,0.2)':'linear-gradient(135deg,#4338ca,#7c3aed)', color:saved?'#34d399':'#fff' }}>
-          {saved ? '✓ Salvo!' : 'Salvar Configurações'}
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function MetaAdsPage() {
-  const [entries, setEntries] = useState([
-    { date:'2026-04-15', valor:980 },
-    { date:'2026-04-14', valor:1240 },
-    { date:'2026-04-13', valor:1100 },
-  ])
-  const [form, setForm] = useState({ date:new Date().toISOString().split('T')[0], valor:'' })
-  const add = () => {
-    if (form.valor) { setEntries(p => [{ date:form.date, valor:parseFloat(form.valor) }, ...p]); setForm(p => ({...p,valor:''})) }
-  }
-  return (
-    <div>
-      <h1 style={{ fontSize:20, fontWeight:700, color:'#f1f5f9', marginBottom:4 }}>Meta Ads</h1>
-      <p style={{ fontSize:12, color:'#64748b', marginBottom:16 }}>Lançamento manual do gasto diário</p>
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))', gap:14 }}>
-        <div style={{ background:'#141320', border:'1px solid #1e1d2e', borderRadius:14, padding:22 }}>
-          <div style={{ fontSize:12, fontWeight:700, color:'#a5b4fc', marginBottom:14 }}>Lançar Gasto do Dia</div>
-          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-            <div><label style={{ fontSize:11, color:'#64748b', display:'block', marginBottom:5 }}>Data</label><input type="date" value={form.date} onChange={e => setForm(p => ({...p,date:e.target.value}))}/></div>
-            <div><label style={{ fontSize:11, color:'#64748b', display:'block', marginBottom:5 }}>Gasto (R$)</label><input type="number" placeholder="0,00" value={form.valor} onChange={e => setForm(p => ({...p,valor:e.target.value}))}/></div>
-            <button onClick={add} style={{ padding:'9px', borderRadius:8, background:'linear-gradient(135deg,#4338ca,#7c3aed)', border:'none', color:'#fff', fontSize:13, fontWeight:700 }}>Adicionar</button>
-          </div>
-        </div>
-        <div style={{ background:'#141320', border:'1px solid #1e1d2e', borderRadius:14, padding:22 }}>
-          <div style={{ fontSize:11, fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:14 }}>Histórico</div>
-          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-            {entries.map((e,i) => (
-              <div key={i} style={{ display:'flex', justifyContent:'space-between', padding:'10px 14px', background:'#0f0e17', borderRadius:8, border:'1px solid #1e1d2e' }}>
-                <span style={{ fontSize:13, color:'#64748b' }}>{e.date}</span>
-                <span style={{ fontSize:14, fontWeight:700, color:'#f87171' }}>{fmt(e.valor)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function LancamentosPage() {
-  const [entries, setEntries] = useState([
-    { id:1, date:'2026-04-15', tipo:'Google Ads', valor:380, obs:'Campanha search' },
-    { id:2, date:'2026-04-14', tipo:'Despesa Fixa', valor:500, obs:'Shopify' },
-  ])
-  const [form, setForm] = useState({ date:new Date().toISOString().split('T')[0], tipo:'Google Ads', valor:'', obs:'' })
-  const add = () => {
-    if (form.valor) { setEntries(p => [{ ...form, id:Date.now(), valor:parseFloat(form.valor) }, ...p]); setForm(p => ({...p,valor:'',obs:''})) }
-  }
-  return (
-    <div>
-      <h1 style={{ fontSize:20, fontWeight:700, color:'#f1f5f9', marginBottom:4 }}>Lançamentos Manuais</h1>
-      <p style={{ fontSize:12, color:'#64748b', marginBottom:16 }}>Google Ads, despesas extras e outras entradas</p>
-      <div style={{ background:'#141320', border:'1px solid #1e1d2e', borderRadius:14, padding:18, marginBottom:14 }}>
-        <div style={{ display:'flex', gap:10, flexWrap:'wrap', alignItems:'flex-end' }}>
-          <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-            <label style={{ fontSize:11, color:'#64748b' }}>Data</label>
-            <input type="date" value={form.date} onChange={e => setForm(p => ({...p,date:e.target.value}))} style={{ width:150 }}/>
-          </div>
-          <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-            <label style={{ fontSize:11, color:'#64748b' }}>Tipo</label>
-            <select value={form.tipo} onChange={e => setForm(p => ({...p,tipo:e.target.value}))} style={{ width:160 }}>
-              {['Google Ads','TikTok Ads','Despesa Fixa','Despesa Variável','Outro'].map(t => <option key={t}>{t}</option>)}
-            </select>
-          </div>
-          <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-            <label style={{ fontSize:11, color:'#64748b' }}>Valor (R$)</label>
-            <input type="number" placeholder="0,00" value={form.valor} onChange={e => setForm(p => ({...p,valor:e.target.value}))} style={{ width:120 }}/>
-          </div>
-          <div style={{ display:'flex', flexDirection:'column', gap:5, flex:1, minWidth:160 }}>
-            <label style={{ fontSize:11, color:'#64748b' }}>Observação</label>
-            <input placeholder="Opcional..." value={form.obs} onChange={e => setForm(p => ({...p,obs:e.target.value}))}/>
-          </div>
-          <button onClick={add} style={{ padding:'9px 20px', borderRadius:8, background:'linear-gradient(135deg,#4338ca,#7c3aed)', border:'none', color:'#fff', fontSize:13, fontWeight:700 }}>Adicionar</button>
-        </div>
-      </div>
-      <div style={{ background:'#141320', border:'1px solid #1e1d2e', borderRadius:14, overflow:'hidden' }}>
-        <table style={{ width:'100%', borderCollapse:'collapse' }}>
-          <thead>
-            <tr style={{ background:'#0f0e17' }}>
-              {['Data','Tipo','Valor','Observação',''].map(h => <th key={h} style={{ fontSize:11, color:'#475569', fontWeight:600, textAlign:'left', padding:'10px 14px', borderBottom:'1px solid #1e1d2e' }}>{h}</th>)}
-            </tr>
-          </thead>
-          <tbody>
-            {entries.map(e => (
-              <tr key={e.id} style={{ borderBottom:'1px solid #1a1929' }}>
-                <td style={{ padding:'11px 14px', fontSize:13, color:'#64748b' }}>{e.date}</td>
-                <td style={{ padding:'11px 14px' }}><span style={{ fontSize:11, padding:'3px 8px', borderRadius:6, background:e.tipo.includes('Ads')?'rgba(251,191,36,0.12)':'rgba(99,102,241,0.12)', color:e.tipo.includes('Ads')?'#fbbf24':'#a5b4fc' }}>{e.tipo}</span></td>
-                <td style={{ padding:'11px 14px', fontSize:13, fontWeight:700, color:'#f87171' }}>{fmt(e.valor)}</td>
-                <td style={{ padding:'11px 14px', fontSize:13, color:'#64748b' }}>{e.obs||'—'}</td>
-                <td style={{ padding:'11px 14px' }}><button onClick={() => setEntries(p => p.filter(x => x.id!==e.id))} style={{ padding:'3px 9px', borderRadius:6, background:'transparent', border:'1px solid #2d2d3d', color:'#f87171', fontSize:11 }}>✕</button></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  )
-}
-
-export default function App() {
-  const [page, setPage] = useState<Page>('dashboard')
-  const [menuOpen, setMenuOpen] = useState(false)
-
-  return (
-    <div style={{ display:'flex', minHeight:'100vh', background:'#0a0918' }}>
-
-      {/* Overlay escuro quando menu aberto no mobile */}
-      {menuOpen && (
-        <div onClick={() => setMenuOpen(false)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', zIndex:40 }}/>
-      )}
-
-      {/* Sidebar */}
-      <aside style={{
-        width: 210,
-        minHeight: '100vh',
-        background: '#0f0e17',
-        borderRight: '1px solid #1e1d2e',
-        display: 'flex',
-        flexDirection: 'column',
-        flexShrink: 0,
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        zIndex: 50,
-        transform: menuOpen ? 'translateX(0)' : 'translateX(-100%)',
-        transition: 'transform 0.25s ease',
-      }}>
-        <div style={{ padding:'18px 16px', borderBottom:'1px solid #1e1d2e', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-            <div style={{ width:28, height:28, borderRadius:8, background:'linear-gradient(135deg,#4338ca,#7c3aed)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:700, fontSize:14 }}>L</div>
-            <span style={{ color:'#e2e8f0', fontWeight:700, fontSize:15 }}>LucroDash</span>
-          </div>
-          <button onClick={() => setMenuOpen(false)} style={{ background:'transparent', border:'none', color:'#64748b', fontSize:18, cursor:'pointer', padding:4 }}>✕</button>
-        </div>
-        <nav style={{ flex:1, padding:'10px 0' }}>
-          {PAGES.map(p => (
-            <button key={p} onClick={() => { setPage(p); setMenuOpen(false) }} style={{ display:'flex', alignItems:'center', gap:10, width:'100%', padding:'9px 16px', background:page===p?'rgba(99,102,241,0.15)':'transparent', border:'none', borderLeft:page===p?'3px solid #6366f1':'3px solid transparent', color:page===p?'#a5b4fc':'#64748b', fontSize:13, fontWeight:page===p?600:400 }}>
-              <span style={{ fontSize:14, minWidth:16 }}>{ICONS[p]}</span>
-              {LABELS[p]}
-            </button>
-          ))}
-        </nav>
-        <div style={{ padding:'14px 16px', borderTop:'1px solid #1e1d2e', display:'flex', alignItems:'center', gap:8 }}>
-          <div style={{ width:26, height:26, borderRadius:'50%', background:'linear-gradient(135deg,#4338ca,#7c3aed)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, color:'#fff', fontWeight:700 }}>LP</div>
-          <div><div style={{ color:'#e2e8f0', fontSize:12, fontWeight:600 }}>Lucas</div><div style={{ color:'#64748b', fontSize:11 }}>Pelos Pets</div></div>
-        </div>
-      </aside>
-
-      {/* Conteúdo principal */}
-      <div style={{ flex:1, display:'flex', flexDirection:'column', minWidth:0 }}>
-
-        {/* Header mobile com botão ☰ */}
-        <header style={{ position:'sticky', top:0, zIndex:30, background:'#0f0e17', borderBottom:'1px solid #1e1d2e', padding:'12px 16px', display:'flex', alignItems:'center', gap:12 }}>
-          <button onClick={() => setMenuOpen(true)} style={{ background:'transparent', border:'none', color:'#a5b4fc', fontSize:22, cursor:'pointer', padding:4, lineHeight:1 }}>☰</button>
-          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-            <div style={{ width:24, height:24, borderRadius:6, background:'linear-gradient(135deg,#4338ca,#7c3aed)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:700, fontSize:12 }}>L</div>
-            <span style={{ color:'#e2e8f0', fontWeight:700, fontSize:14 }}>LucroDash</span>
-          </div>
-          <span style={{ fontSize:13, color:'#64748b', marginLeft:'auto' }}>{LABELS[page]}</span>
-        </header>
-
-        <main style={{ flex:1, overflowY:'auto', padding:'18px 16px 48px' }}>
-          {page==='dashboard' && <DashPage/>}
-          {page==='produtos' && <ProdutosPage/>}
-          {page==='taxas' && <TaxasPage/>}
-          {page==='meta-ads' && <MetaAdsPage/>}
-          {page==='lancamentos' && <LancamentosPage/>}
-        </main>
-      </div>
-    </div>
-  )
-}
