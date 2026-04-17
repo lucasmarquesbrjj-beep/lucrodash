@@ -336,7 +336,10 @@ const [mostrarSenha, setMostrarSenha] = useState(false)
 }
 
 function DashPage({ taxas }: { taxas: any }) {
-  const [filter, setFilter] = useState('today')
+ const [filter, setFilter] = useState('today')
+const [customStart, setCustomStart] = useState('')
+const [customEnd, setCustomEnd] = useState('')
+const [showCustom, setShowCustom] = useState(false)
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -377,9 +380,18 @@ function DashPage({ taxas }: { taxas: any }) {
           <p style={{ fontSize:12, color:'#64748b', marginTop:2 }}>Pelos Pets · Visão geral da operação</p>
         </div>
         <div style={{ display:'flex', gap:5, flexWrap:'wrap' }}>
-          {[['today','Hoje'],['yesterday','Ontem'],['7d','7 dias'],['30d','30 dias'],['month','Mês']].map(([v,l]) => (
-            <button key={v} onClick={() => setFilter(v)} style={{ padding:'5px 12px', borderRadius:20, fontSize:12, border:filter===v?'1.5px solid #6366f1':'1px solid #2d2d3d', background:filter===v?'rgba(99,102,241,0.15)':'transparent', color:filter===v?'#a5b4fc':'#64748b' }}>{l}</button>
-          ))}
+         {[['today','Hoje'],['yesterday','Ontem'],['7d','7 dias'],['30d','30 dias'],['month','Este mês']].map(([v,l]) => (
+  <button key={v} onClick={() => { setFilter(v); setShowCustom(false) }} style={{ padding:'5px 12px', borderRadius:20, fontSize:12, border:filter===v&&!showCustom?'1.5px solid #6366f1':'1px solid #2d2d3d', background:filter===v&&!showCustom?'rgba(99,102,241,0.15)':'transparent', color:filter===v&&!showCustom?'#a5b4fc':'#64748b' }}>{l}</button>
+))}
+<button onClick={() => setShowCustom(!showCustom)} style={{ padding:'5px 12px', borderRadius:20, fontSize:12, border:showCustom?'1.5px solid #6366f1':'1px solid #2d2d3d', background:showCustom?'rgba(99,102,241,0.15)':'transparent', color:showCustom?'#a5b4fc':'#64748b' }}>📅 Período</button>
+{showCustom && (
+  <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap', marginTop:6 }}>
+    <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} style={{ padding:'4px 8px', fontSize:12, borderRadius:8 }}/>
+    <span style={{ color:'#64748b', fontSize:12 }}>até</span>
+    <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} style={{ padding:'4px 8px', fontSize:12, borderRadius:8 }}/>
+    <button onClick={() => { if(customStart && customEnd) setFilter(`custom:${customStart}:${customEnd}`) }} style={{ padding:'5px 12px', borderRadius:20, fontSize:12, background:'linear-gradient(135deg,#4338ca,#7c3aed)', border:'none', color:'#fff' }}>Buscar</button>
+  </div>
+)}
         </div>
       </div>
 
