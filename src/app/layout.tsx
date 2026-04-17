@@ -5,7 +5,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <title>LucroDash · Faturamento é vaidade. Lucro é realidade.</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="description" content="Faturamento é vaidade. Lucro é realidade." />
-        <link rel="icon" type="image/png" href="/favicon.png" />
+       <link rel="icon" type="image/png" href="/favicon.png" sizes="32x32" />
+<link rel="apple-touch-icon" href="/favicon.png" />
         <style>{`
           *{box-sizing:border-box;margin:0;padding:0}
           body{background:#0a0918;color:#e2e8f0;font-family:-apple-system,system-ui,sans-serif}
