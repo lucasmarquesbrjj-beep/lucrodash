@@ -58,8 +58,8 @@ export async function GET(request: NextRequest) {
       return (attr?.value || o.payment_gateway || '').toLowerCase();
     }
 
-    const cartaoAprovado = pagos.filter((o: any) => getPaymentType(o).includes('credit')).length;
-    const cartaoPendente = pendentes.filter((o: any) => getPaymentType(o).includes('credit')).length;
+    const cartaoAprovado = pagos.filter((o: any) => { const t = getPaymentType(o); return t === 'cc' || t.includes('credit') || t.includes('card'); }).length;
+    const cartaoPendente = pendentes.filter((o: any) => { const t = getPaymentType(o); return t === 'cc' || t.includes('credit') || t.includes('card'); }).length;
     const boletoPago = pagos.filter((o: any) => getPaymentType(o).includes('boleto')).length;
     const boletoPendente = pendentes.filter((o: any) => getPaymentType(o).includes('boleto')).length;
     const pixPago = pagos.filter((o: any) => getPaymentType(o).includes('pix')).length;
