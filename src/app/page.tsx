@@ -46,7 +46,7 @@ function MiniRows({ title, rows, color='#6366f1' }: { title:string, rows:{label:
 
 function LucroComposicao({ fat, taxas, pedidos }: { fat:number, taxas:any, pedidos:number }) {
   const diasMes = new Date(new Date().getFullYear(), new Date().getMonth()+1, 0).getDate()
-  const checkoutFixoDiario = (taxas.checkout_fixo_mensal || 0) / diasMes
+  
   const tCheckout = fat * (taxas.checkout_pct || 0) / 100 + checkoutFixoDiario
   const tGateway = fat * (taxas.gateway_pct || 0) / 100
   const tImposto = fat * (taxas.imposto_pct || 0) / 100
@@ -354,7 +354,7 @@ function DashPage({ taxas }: { taxas: any }) {
   const hourly = d.hourly || Array(24).fill(0)
   const states = d.states || []
   const diasMes = new Date(new Date().getFullYear(), new Date().getMonth()+1, 0).getDate()
-  const checkoutFixoDiario = (taxas.checkout_fixo_mensal || 0) / diasMes
+
   const fat = d.faturamentoPago || 0
   const pedidos = d.pedidosPagos || 0
   const tCheckout = fat * (taxas.checkout_pct || 0) / 100 + checkoutFixoDiario
