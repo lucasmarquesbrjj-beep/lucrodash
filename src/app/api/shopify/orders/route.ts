@@ -38,11 +38,16 @@ export async function GET(request: NextRequest) {
   } else if (filter === '30d') {
     const start = new Date(now); start.setDate(start.getDate()-30); start.setHours(0,0,0,0);
     created_at_min = new Date(start.getTime() + 3 * 60 * 60 * 1000).toISOString();
+  } else if (filter.startsWith('custom:')) {
+    const parts = filter.split(':');
+    const start = new Date(parts[1] + 'T00:00:00-03:00');
+    const end = new Date(parts[2] + 'T23:59:59-03:00');
+    created_at_min = start.toISOString();
+    created_at_max = end.toISOString();
   } else {
     const start = new Date(now.getFullYear(), now.getMonth(), 1);
     created_at_min = new Date(start.getTime() + 3 * 60 * 60 * 1000).toISOString();
   }
-
   try {
     const url = `https://${SHOP}/admin/api/2024-01/orders.json?status=any&limit=250&created_at_min=${created_at_min}&created_at_max=${created_at_max}`;
     const res = await fetch(url, {
