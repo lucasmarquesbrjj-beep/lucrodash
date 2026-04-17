@@ -3,16 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 const SHOP = 'pelos-pets-9091.myshopify.com';
 const TOKEN = process.env.SHOPIFY_ACCESS_TOKEN!;
 
-// Retorna data no fuso de São Paulo
 function nowBrasilia() {
   return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
-}
-
-function startOfDayBrasilia(date: Date) {
-  const d = new Date(date.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
-  d.setHours(0, 0, 0, 0);
-  // Converter de volta para UTC com offset -3
-  return new Date(d.getTime() + (d.getTimezoneOffset() * 60000));
 }
 
 export async function GET(request: NextRequest) {
@@ -25,7 +17,6 @@ export async function GET(request: NextRequest) {
 
   if (filter === 'today') {
     const start = new Date(now); start.setHours(0,0,0,0);
-    // Adiciona offset de -3h (Brasília) para converter para UTC correto
     created_at_min = new Date(start.getTime() + 3 * 60 * 60 * 1000).toISOString();
   } else if (filter === 'yesterday') {
     const start = new Date(now); start.setDate(start.getDate()-1); start.setHours(0,0,0,0);
@@ -48,23 +39,34 @@ export async function GET(request: NextRequest) {
     const start = new Date(now.getFullYear(), now.getMonth(), 1);
     created_at_min = new Date(start.getTime() + 3 * 60 * 60 * 1000).toISOString();
   }
-  try {
-    const url = `https://${SHOP}/admin/api/2024-01/orders.json?status=any&limit=250&created_at_min=${created_at_min}&created_at_max=${created_at_max}`;
-    const res = await fetch(url, {
-      headers: {
-        'X-Shopify-Access-Token': TOKEN,
-        'Content-Type': 'application/json',
-      },
-      cache: 'no-store',
-    });
 
-    if (!res.ok) {
-      const err = await res.text();
-      return NextResponse.json({ error: err }, { status: res.status });
+  try {
+    let allOrders: any[] = [];
+    let pageUrl: string = `https://${SHOP}/admin/api/2024-01/orders.json?status=any&limit=250&created_at_min=${created_at_min}&created_at_max=${created_at_max}`;
+
+    while (pageUrl) {
+      const res = await fetch(pageUrl, {
+        headers: {
+          'X-Shopify-Access-Token': TOKEN,
+          'Content-Type': 'application/json',
+        },
+        cache: 'no-store',
+      });
+
+      if (!res.ok) {
+        const err = await res.text();
+        return NextResponse.json({ error: err }, { status: res.status });
+      }
+
+      const { orders } = await res.json();
+      allOrders = [...allOrders, ...orders];
+
+      const linkHeader = res.headers.get('Link');
+      const nextMatch = linkHeader?.match(/<([^>]+)>;\s*rel="next"/);
+      pageUrl = nextMatch ? nextMatch[1] : '';
     }
 
-    const { orders } = await res.json();
-
+    const orders = allOrders;
     const pagos = orders.filter((o: any) => o.financial_status === 'paid');
     const pendentes = orders.filter((o: any) => ['pending','partially_paid'].includes(o.financial_status));
 
