@@ -286,9 +286,7 @@ const [mostrarSenha, setMostrarSenha] = useState(false)
     <div style={{ minHeight:'100vh', background:'#0a0918', display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
       <div style={{ width:'100%', maxWidth:380 }}>
         <div style={{ textAlign:'center', marginBottom:32 }}>
-          <img src="/logo.png" alt="LucroDash" style={{ width:200, margin:'0 auto 8px', display:'block' }} />
-          <h1 style={{ fontSize:22, fontWeight:700, color:'#f1f5f9', margin:0 }}>LucroDash</h1>
-          <p style={{ fontSize:13, color:'#64748b', marginTop:6 }}>Pelos Pets · Controle de lucro</p>
+   <img src="/logo.png" alt="LucroDash" style={{ width:220, margin:'0 auto 16px', display:'block' }} />
         </div>
         <div style={{ background:'#141320', border:'1px solid #1e1d2e', borderRadius:16, padding:28 }}>
           <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
