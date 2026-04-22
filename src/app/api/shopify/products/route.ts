@@ -49,6 +49,7 @@ export async function GET(request: NextRequest) {
     created_at_min = start.toISOString();
     created_at_max = end.toISOString();
   } else {
+    // month (default)
     const start = new Date(now.getFullYear(), now.getMonth(), 1);
     created_at_min = new Date(start.getTime() + 3 * 60 * 60 * 1000).toISOString();
   }
@@ -57,6 +58,7 @@ export async function GET(request: NextRequest) {
     const allOrders: any[] = [];
     const params = new URLSearchParams({
       status: 'any',
+      financial_status: 'paid',
       limit: '250',
       created_at_min,
       created_at_max,
@@ -65,9 +67,7 @@ export async function GET(request: NextRequest) {
 
     while (pageUrl) {
       const res = await fetch(pageUrl, {
-        headers: {
-          'X-Shopify-Access-Token': TOKEN,
-        },
+        headers: { 'X-Shopify-Access-Token': TOKEN },
         cache: 'no-store',
       });
 
@@ -84,74 +84,32 @@ export async function GET(request: NextRequest) {
       pageUrl = nextMatch ? nextMatch[1] : null;
     }
 
-    const orders = allOrders;
-    const pagos = orders.filter((o: any) => o.financial_status === 'paid');
-    const pagosValidos = pagos.filter((o: any) => parseFloat(o.total_price || '0') >= 1);
-    const reenvios = pagos.filter((o: any) =>
-      parseFloat(o.total_price || '0') < 1 &&
-      (o.line_items || []).some((li: any) => li.title?.toLowerCase().includes('reenvio'))
-    );
-    const reenviosPct = pagosValidos.length > 0
-      ? Math.round((reenvios.length / pagosValidos.length) * 100)
-      : 0;
-    const pendentes = orders.filter((o: any) => ['pending','partially_paid'].includes(o.financial_status));
+    const validOrders = allOrders.filter(o => parseFloat(o.total_price || '0') >= 1);
 
-    const faturamentoPago = pagos.reduce((s: number, o: any) => s + parseFloat(o.total_price || '0'), 0);
-    const faturamentoBruto = orders.reduce((s: number, o: any) => s + parseFloat(o.total_price || '0'), 0);
+    type VariantData = { product_title: string; variant_title: string; qty: number; revenue: number };
+    const variantMap: Record<string, VariantData> = {};
 
-    const getPaymentType = (o: any) => {
-      const attrs = o.note_attributes || [];
-      const attr = attrs.find((a: any) => a.name === 'shipping_payment_type');
-      return (attr?.value || o.payment_gateway || '').toLowerCase();
+    for (const order of validOrders) {
+      for (const item of (order.line_items || [])) {
+        const key = String(item.variant_id || `${item.product_id}-${item.title}`);
+        if (!variantMap[key]) {
+          variantMap[key] = {
+            product_title: item.title || '',
+            variant_title: item.variant_title || '',
+            qty: 0,
+            revenue: 0,
+          };
+        }
+        variantMap[key].qty += item.quantity || 0;
+        variantMap[key].revenue += parseFloat(item.price || '0') * (item.quantity || 0);
+      }
     }
 
-    const cartaoAprovado = pagos.filter((o: any) => { const t = getPaymentType(o); return t === 'cc' || t.includes('credit') || t.includes('card'); }).length;
-    const cartaoPendente = pendentes.filter((o: any) => { const t = getPaymentType(o); return t === 'cc' || t.includes('credit') || t.includes('card'); }).length;
-    const boletoPago = pagos.filter((o: any) => getPaymentType(o).includes('boleto')).length;
-    const boletoPendente = pendentes.filter((o: any) => getPaymentType(o).includes('boleto')).length;
-    const pixPago = pagos.filter((o: any) => getPaymentType(o).includes('pix')).length;
-    const pixPendente = pendentes.filter((o: any) => getPaymentType(o).includes('pix')).length;
-
-    const ticketMedio = pagosValidos.length > 0 ? faturamentoPago / pagosValidos.length : 0;
-    const descontos = orders.reduce((s: number, o: any) => s + parseFloat(o.total_discounts || '0'), 0);
-    const frete = pagosValidos.reduce((s: number, o: any) => s + parseFloat(o.total_shipping_price_set?.shop_money?.amount || '0'), 0);
-
-    const hourly = Array(24).fill(0);
-    pagos.forEach((o: any) => {
-      const h = new Date(new Date(o.created_at).toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' })).getHours();
-      hourly[h] += parseFloat(o.total_price || '0');
-    });
-
-    const stateMap: Record<string, { orders: number; revenue: number }> = {};
-    pagos.forEach((o: any) => {
-      const s = o.shipping_address?.province_code || o.billing_address?.province_code || 'N/A';
-      if (!stateMap[s]) stateMap[s] = { orders: 0, revenue: 0 };
-      stateMap[s].orders++;
-      stateMap[s].revenue += parseFloat(o.total_price || '0');
-    });
-    const states = Object.entries(stateMap)
-      .map(([state, d]) => ({ state, orders: d.orders, revenue: d.revenue, pct: Math.round((d.orders / pagos.length) * 100) }))
+    const products = Object.values(variantMap)
       .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 6);
+      .slice(0, 10);
 
-    return NextResponse.json({
-      faturamentoPago,
-      faturamentoBruto,
-      pedidosGerados: orders.length,
-      pedidosPagos: pagosValidos.length,
-      pedidosPendentes: pendentes.length,
-      cartaoAprovado, cartaoPendente,
-      boletoPago, boletoPendente,
-      pixPago, pixPendente,
-      ticketMedio,
-      descontos,
-      frete,
-      reenvios: reenvios.length,
-      reenviosPct,
-      hourly,
-      states,
-    });
-
+    return NextResponse.json({ products });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

@@ -96,7 +96,7 @@ function Toast({ msg, onHide }: { msg: string; onHide: () => void }) {
   )
 }
 
-const FILTERS = [['today','Hoje'],['yesterday','Ontem'],['anteontem','Anteontem'],['7d','7 dias'],['30d','30 dias'],['month','Este mês']]
+const FILTERS = [['today','Hoje'],['yesterday','Ontem'],['anteontem','Anteontem'],['7d','7 dias'],['30d','30 dias'],['month','Este mês'],['year','Este ano'],['lastyear','Ano passado']]
 const CHANNELS = [
   { id: 'ecom', icon: '🛒', label: 'E-commerce' },
   { id: 'ml', icon: '🟡', label: 'Mercado Livre' },
@@ -113,6 +113,8 @@ function DashPage({ taxas }: { taxas: any }) {
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [metaSpend, setMetaSpend] = useState<number | null>(null)
+  const [monthData, setMonthData] = useState<any>(null)
+  const [products, setProducts] = useState<any[]>([])
   const metaGoal = 250000
 
   const fetchData = (f: string) => {
@@ -128,6 +130,15 @@ function DashPage({ taxas }: { taxas: any }) {
     fetch(`/api/meta/spend?filter=${filter}`)
       .then(r => r.json())
       .then(d => { if (typeof d.spend === 'number') setMetaSpend(d.spend) })
+    fetch('/api/shopify/orders?filter=month')
+      .then(r => r.json())
+      .then(d => setMonthData(d))
+      .catch(() => {})
+    setProducts([])
+    fetch(`/api/shopify/products?filter=${filter}`)
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d.products)) setProducts(d.products) })
+      .catch(() => {})
   }, [filter])
 
   const d = data || {}
@@ -149,8 +160,9 @@ function DashPage({ taxas }: { taxas: any }) {
   const totalCustos = tCo + tGw + tIm + tPr + tFr + tMa + tGo + tMi
   const lucro = fat - totalCustos
   const margem = fat > 0 ? (lucro / fat) * 100 : 0
-  const pct = Math.min((fat / metaGoal) * 100, 100)
-  const proj = (fat / (new Date().getDate())) * new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()
+  const monthFat = Math.round((monthData?.faturamentoPago || 0) * m)
+  const pct = Math.min((monthFat / metaGoal) * 100, 100)
+  const proj = (monthFat / (new Date().getDate())) * new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()
   const maxH = Math.max(...hourly, 1)
   const nowH = new Date().getHours()
 
@@ -214,23 +226,36 @@ function DashPage({ taxas }: { taxas: any }) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 12, marginBottom: 14 }}>
             <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '16px 18px' }}>
               <div style={{ fontSize: 10, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as any, letterSpacing: '0.5px', marginBottom: 12 }}>Composição do lucro</div>
-              {[
-                { label: 'Faturamento pago', val: fat, pos: true },
-                { label: `Taxa checkout (${taxas.checkout_pct || 0}%)`, val: tCo },
-                { label: `Taxa gateway (${taxas.gateway_pct || 0}%)`, val: tGw },
-                { label: `Impostos (${taxas.imposto_pct || 0}%)`, val: tIm },
-                { label: `Custo produto (${pedidos}x)`, val: tPr },
-                { label: `Frete (${pedidos}x)`, val: tFr },
-                { label: 'Meta Ads', val: tMa },
-                { label: `Imposto Meta (${taxas.imposto_meta_pct || 0}%)`, val: tMi },
-                { label: 'Google Ads', val: tGo },
-              ].map((r, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #1a1929', fontSize: 12 }}>
-                  <span style={{ color: '#94a3b8' }}>{r.label}</span>
-                  <span style={{ fontWeight: 600, color: r.pos ? '#34d399' : '#f87171' }}>{r.pos ? '+' : '-'} {brl(Math.abs(r.val))}</span>
+              {([
+                { title: 'Receita', rows: [{ label: 'Faturamento pago', val: fat, pos: true }] },
+                { title: 'Taxas de Plataforma', rows: [
+                  { label: `Checkout (${taxas.checkout_pct || 0}%)`, val: tCo },
+                  { label: `Gateway (${taxas.gateway_pct || 0}%)`, val: tGw },
+                ]},
+                { title: 'Impostos', rows: [
+                  { label: `Faturamento (${taxas.imposto_pct || 0}%)`, val: tIm },
+                  { label: `Meta Ads (${taxas.imposto_meta_pct || 0}%)`, val: tMi },
+                ]},
+                { title: 'Custos Operacionais', rows: [
+                  { label: `Custo produto (${pedidos}x)`, val: tPr },
+                  { label: `Frete (${pedidos}x)`, val: tFr },
+                ]},
+                { title: 'Publicidade', rows: [
+                  { label: 'Meta Ads', val: tMa },
+                  { label: 'Google Ads', val: tGo },
+                ]},
+              ] as { title: string; rows: { label: string; val: number; pos?: boolean }[] }[]).map((sec, si) => (
+                <div key={si} style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: '#475569', textTransform: 'uppercase' as any, letterSpacing: '0.6px', paddingBottom: 5, marginBottom: 2, borderBottom: '2px solid #2d2d3d' }}>{sec.title}</div>
+                  {sec.rows.map((r, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 12 }}>
+                      <span style={{ color: '#94a3b8' }}>{r.label}</span>
+                      <span style={{ fontWeight: 600, color: r.pos ? '#34d399' : '#f87171' }}>{r.pos ? '+' : '-'} {brl(Math.abs(r.val))}</span>
+                    </div>
+                  ))}
                 </div>
               ))}
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', marginTop: 4, borderTop: '1px solid #2d2d3d' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', marginTop: 4, borderTop: '2px solid #2d2d3d' }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9' }}>Lucro líquido</span>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: 14, fontWeight: 700, color: lucro > 0 ? '#34d399' : '#f87171' }}>{brl(lucro)}</div>
@@ -279,14 +304,14 @@ function DashPage({ taxas }: { taxas: any }) {
                 <span style={{ fontSize: 10, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as any, letterSpacing: '0.5px' }}>Meta do mês</span>
                 <span style={{ fontSize: 12, color: '#a5b4fc', fontWeight: 600 }}>{pct.toFixed(1)}%</span>
               </div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: '#f1f5f9' }}>{brl(fat)}</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: '#f1f5f9' }}>{brl(monthFat)}</div>
               <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>de {brl(metaGoal)}</div>
               <div style={{ height: 6, background: '#1e1d2e', borderRadius: 3, overflow: 'hidden', marginBottom: 10 }}>
                 <div style={{ height: '100%', width: `${pct}%`, background: 'linear-gradient(90deg,#4338ca,#7c3aed)', borderRadius: 3 }} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <div><div style={{ fontSize: 11, color: '#64748b' }}>Projeção</div><div style={{ fontSize: 13, fontWeight: 600, color: proj >= metaGoal ? '#34d399' : '#fbbf24' }}>{brl(proj)}</div></div>
-                <div style={{ textAlign: 'right' }}><div style={{ fontSize: 11, color: '#64748b' }}>Faltam</div><div style={{ fontSize: 13, fontWeight: 600, color: '#94a3b8' }}>{brl(Math.max(metaGoal - fat, 0))}</div></div>
+                <div style={{ textAlign: 'right' }}><div style={{ fontSize: 11, color: '#64748b' }}>Faltam</div><div style={{ fontSize: 13, fontWeight: 600, color: '#94a3b8' }}>{brl(Math.max(metaGoal - monthFat, 0))}</div></div>
               </div>
             </div>
           </div>
@@ -310,7 +335,24 @@ function DashPage({ taxas }: { taxas: any }) {
             </div>
             <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: 18 }}>
               <div style={{ fontSize: 10, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as any, letterSpacing: '0.5px', marginBottom: 12 }}>Ranking de produtos</div>
-              <div style={{ fontSize: 12, color: '#475569' }}>Conecte produtos para ver o ranking por SKU.</div>
+              {products.length === 0
+                ? <div style={{ fontSize: 12, color: '#475569' }}>Sem dados para o período.</div>
+                : products.map((p, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: i < products.length - 1 ? '1px solid #1a1929' : 'none' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#6366f1', minWidth: 20, flexShrink: 0 }}>#{i + 1}</span>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as any }}>{p.product_title}</div>
+                        {p.variant_title && <div style={{ fontSize: 10, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as any }}>{p.variant_title}</div>}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' as any, flexShrink: 0, marginLeft: 8 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#34d399' }}>{brl(p.revenue)}</div>
+                      <div style={{ fontSize: 10, color: '#64748b' }}>{p.qty} un.</div>
+                    </div>
+                  </div>
+                ))
+              }
             </div>
           </div>
         </>

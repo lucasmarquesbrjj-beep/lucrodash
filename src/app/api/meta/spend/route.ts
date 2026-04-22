@@ -9,6 +9,8 @@ const DATE_PRESET: Record<string, string> = {
   '7d':      'last_7d',
   '30d':     'last_30d',
   month:     'this_month',
+  year:      'this_year',
+  lastyear:  'last_year',
 };
 
 function dateStr(daysAgo: number) {
