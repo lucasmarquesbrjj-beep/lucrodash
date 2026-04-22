@@ -23,6 +23,11 @@ export async function GET(request: NextRequest) {
     const end = new Date(now); end.setHours(0,0,0,0);
     created_at_min = new Date(start.getTime() + 3 * 60 * 60 * 1000).toISOString();
     created_at_max = new Date(end.getTime() + 3 * 60 * 60 * 1000).toISOString();
+  } else if (filter === 'anteontem') {
+    const start = new Date(now); start.setDate(start.getDate()-2); start.setHours(0,0,0,0);
+    const end = new Date(now); end.setDate(end.getDate()-1); end.setHours(0,0,0,0);
+    created_at_min = new Date(start.getTime() + 3 * 60 * 60 * 1000).toISOString();
+    created_at_max = new Date(end.getTime() + 3 * 60 * 60 * 1000).toISOString();
   } else if (filter === '7d') {
     const start = new Date(now); start.setDate(start.getDate()-7); start.setHours(0,0,0,0);
     created_at_min = new Date(start.getTime() + 3 * 60 * 60 * 1000).toISOString();

@@ -96,7 +96,7 @@ function Toast({ msg, onHide }: { msg: string; onHide: () => void }) {
   )
 }
 
-const FILTERS = [['today','Hoje'],['yesterday','Ontem'],['7d','7 dias'],['30d','30 dias'],['month','Este mês']]
+const FILTERS = [['today','Hoje'],['yesterday','Ontem'],['anteontem','Anteontem'],['7d','7 dias'],['30d','30 dias'],['month','Este mês']]
 const CHANNELS = [
   { id: 'ecom', icon: '🛒', label: 'E-commerce' },
   { id: 'ml', icon: '🟡', label: 'Mercado Livre' },

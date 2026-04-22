@@ -11,9 +11,17 @@ const DATE_PRESET: Record<string, string> = {
   month:     'this_month',
 };
 
+function dateStr(daysAgo: number) {
+  const d = new Date();
+  d.setDate(d.getDate() - daysAgo);
+  return d.toISOString().split('T')[0];
+}
+
 export async function GET(request: NextRequest) {
   const filter = request.nextUrl.searchParams.get('filter') || 'today';
-  const datePreset = DATE_PRESET[filter] ?? 'today';
+  const isAnteontem = filter === 'anteontem';
+  const datePreset = isAnteontem ? null : (DATE_PRESET[filter] ?? 'today');
+  const anteontemDate = isAnteontem ? dateStr(2) : null;
 
   // 1. Busca o token salvo no Supabase
   const configRes = await fetch(
@@ -46,8 +54,11 @@ export async function GET(request: NextRequest) {
 
   // 3. Soma o gasto do período de todas as contas
   for (const account of accounts) {
+    const timeParam = isAnteontem
+      ? `time_range={"since":"${anteontemDate}","until":"${anteontemDate}"}`
+      : `date_preset=${datePreset}`;
     const insightsRes = await fetch(
-      `https://graph.facebook.com/v20.0/${account.id}/insights?fields=spend&date_preset=${datePreset}&access_token=${token}`,
+      `https://graph.facebook.com/v20.0/${account.id}/insights?fields=spend&${timeParam}&access_token=${token}`,
       { cache: 'no-store' }
     );
     const insightsData = await insightsRes.json();
