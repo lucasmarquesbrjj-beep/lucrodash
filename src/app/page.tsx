@@ -928,95 +928,120 @@ function ProdutosPage() {
               Erro ao buscar catálogo: {catalogError}
             </div>
           )}
-          {!catalogLoading && !catalogError && catalogLoaded && (
-            <>
-              {/* Summary cards */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 10, marginBottom: 16 }}>
-                {[
-                  { label: 'Produtos cadastrados', val: num(totalProducts), color: '#6366f1' },
-                  { label: 'Variantes / SKUs', val: num(totalVariants), color: '#a78bfa' },
-                ].map((k, i) => (
-                  <div key={i} style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '14px 16px', position: 'relative', overflow: 'hidden' }}>
-                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg,${k.color},transparent)` }} />
-                    <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' as any, letterSpacing: '0.4px', marginBottom: 6 }}>{k.label}</div>
-                    <div style={{ fontSize: 24, fontWeight: 700, color: '#f1f5f9' }}>{k.val}</div>
-                  </div>
-                ))}
-              </div>
+          {!catalogLoading && !catalogError && catalogLoaded && (() => {
+            const materialWords = new Set(['escultura', 'em', 'de', 'da', 'do', 'madeira', 'resina', 'pelúcia', 'pelucia'])
+            const isEscultura = (p: any) =>
+              p.title.toLowerCase().includes('escultura') || p.product_type.toLowerCase().includes('escultura')
+            const esculturas = filteredCatalog.filter(isEscultura)
+            const drop = filteredCatalog.filter((p: any) => !isEscultura(p))
+            const skusEscultura = esculturas.reduce((s: number, p: any) => s + p.variants.length, 0)
+            const skusDrop = drop.reduce((s: number, p: any) => s + p.variants.length, 0)
+            const racas = new Set(
+              esculturas.map((p: any) =>
+                p.title.split(/\s+/).filter((w: string) => !materialWords.has(w.toLowerCase())).join(' ').trim()
+              ).filter(Boolean)
+            )
 
-              {/* Search */}
-              <div style={{ marginBottom: 12 }}>
-                <input
-                  type="text"
-                  placeholder="Buscar por produto, variante ou SKU..."
-                  value={catalogSearch}
-                  onChange={e => setCatalogSearch(e.target.value)}
-                  style={{ width: '100%', padding: '9px 14px', background: '#141320', border: '1px solid #2d2d3d', borderRadius: 10, color: '#e2e8f0', fontSize: 13, boxSizing: 'border-box' as any }}
-                />
-              </div>
-
-              {/* Expandable product list */}
-              <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, overflow: 'hidden' }}>
-                {filteredCatalog.length === 0 ? (
-                  <div style={{ padding: 32, textAlign: 'center', fontSize: 13, color: '#475569' }}>
-                    {catalogSearch ? 'Nenhum produto encontrado.' : 'Catálogo vazio.'}
-                  </div>
-                ) : (
-                  <>
-                    <div style={{ padding: '10px 16px', borderBottom: '1px solid #1e1d2e', fontSize: 11, color: '#475569' }}>
-                      {filteredCatalog.length} produto{filteredCatalog.length !== 1 ? 's' : ''}
-                      {catalogSearch ? ` encontrado${filteredCatalog.length !== 1 ? 's' : ''}` : ''}
+            const renderProductList = (products: any[]) => products.map((p: any, i: number) => {
+              const isOpen = expanded.has(p.id)
+              return (
+                <div key={p.id} style={{ borderBottom: i < products.length - 1 ? '1px solid #1a1929' : 'none' }}>
+                  <button
+                    onClick={() => toggleExpand(p.id)}
+                    style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', background: isOpen ? 'rgba(99,102,241,0.06)' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' as any }}
+                  >
+                    <span style={{ fontSize: 11, color: isOpen ? '#6366f1' : '#475569', transition: 'transform 0.15s', display: 'inline-block', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', flexShrink: 0 }}>▶</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as any }}>{p.title}</div>
+                      {p.product_type && <div style={{ fontSize: 11, color: '#475569', marginTop: 1 }}>{p.product_type}</div>}
                     </div>
-                    {filteredCatalog.map((p, i) => {
-                      const isOpen = expanded.has(p.id)
-                      return (
-                        <div key={p.id} style={{ borderBottom: i < filteredCatalog.length - 1 ? '1px solid #1a1929' : 'none' }}>
-                          {/* Product row */}
-                          <button
-                            onClick={() => toggleExpand(p.id)}
-                            style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', background: isOpen ? 'rgba(99,102,241,0.06)' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' as any }}
-                          >
-                            <span style={{ fontSize: 11, color: isOpen ? '#6366f1' : '#475569', transition: 'transform 0.15s', display: 'inline-block', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', flexShrink: 0 }}>▶</span>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as any }}>{p.title}</div>
-                              {p.product_type && <div style={{ fontSize: 11, color: '#475569', marginTop: 1 }}>{p.product_type}</div>}
-                            </div>
-                            <span style={{ fontSize: 11, color: '#64748b', flexShrink: 0, background: '#1e1d2e', padding: '2px 8px', borderRadius: 10 }}>
-                              {p.variants.length} {p.variants.length === 1 ? 'variante' : 'variantes'}
-                            </span>
-                          </button>
-
-                          {/* Variants */}
-                          {isOpen && (
-                            <div style={{ background: '#0f0e17', borderTop: '1px solid #1e1d2e' }}>
-                              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', padding: '7px 16px 7px 44px', borderBottom: '1px solid #1e1d2e' }}>
-                                {['Variante', 'SKU', 'Preço'].map(h => (
-                                  <span key={h} style={{ fontSize: 10, fontWeight: 600, color: '#475569', textTransform: 'uppercase' as any, letterSpacing: '0.4px' }}>{h}</span>
-                                ))}
-                              </div>
-                              {p.variants.map((v: any, vi: number) => (
-                                <div key={v.id} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', padding: '9px 16px 9px 44px', borderBottom: vi < p.variants.length - 1 ? '1px solid #1a1929' : 'none', alignItems: 'center' }}>
-                                  <span style={{ fontSize: 12, color: v.title ? '#c4b5fd' : '#475569', fontStyle: v.title ? 'normal' : 'italic' }}>
-                                    {v.title || 'Padrão'}
-                                  </span>
-                                  <span style={{ fontSize: 11, color: v.sku ? '#94a3b8' : '#334155', fontFamily: 'monospace' }}>
-                                    {v.sku || '—'}
-                                  </span>
-                                  <span style={{ fontSize: 12, fontWeight: 600, color: '#34d399' }}>
-                                    {brl(v.price)}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
+                    <span style={{ fontSize: 11, color: '#64748b', flexShrink: 0, background: '#1e1d2e', padding: '2px 8px', borderRadius: 10 }}>
+                      {p.variants.length} {p.variants.length === 1 ? 'variante' : 'variantes'}
+                    </span>
+                  </button>
+                  {isOpen && (
+                    <div style={{ background: '#0f0e17', borderTop: '1px solid #1e1d2e' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', padding: '7px 16px 7px 44px', borderBottom: '1px solid #1e1d2e' }}>
+                        {['Variante', 'SKU', 'Preço'].map(h => (
+                          <span key={h} style={{ fontSize: 10, fontWeight: 600, color: '#475569', textTransform: 'uppercase' as any, letterSpacing: '0.4px' }}>{h}</span>
+                        ))}
+                      </div>
+                      {p.variants.map((v: any, vi: number) => (
+                        <div key={v.id} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', padding: '9px 16px 9px 44px', borderBottom: vi < p.variants.length - 1 ? '1px solid #1a1929' : 'none', alignItems: 'center' }}>
+                          <span style={{ fontSize: 12, color: v.title ? '#c4b5fd' : '#475569', fontStyle: v.title ? 'normal' : 'italic' }}>
+                            {v.title || 'Padrão'}
+                          </span>
+                          <span style={{ fontSize: 11, color: v.sku ? '#94a3b8' : '#334155', fontFamily: 'monospace' }}>
+                            {v.sku || '—'}
+                          </span>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: '#34d399' }}>
+                            {brl(v.price)}
+                          </span>
                         </div>
-                      )
-                    })}
-                  </>
-                )}
-              </div>
-            </>
-          )}
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })
+
+            return (
+              <>
+                {/* Summary cards */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 10, marginBottom: 16 }}>
+                  {[
+                    { label: 'Raças', val: num(racas.size), color: '#f59e0b' },
+                    { label: 'SKUs de escultura', val: num(skusEscultura), color: '#6366f1' },
+                    { label: 'Produtos drop', val: num(drop.length), color: '#10b981' },
+                    { label: 'SKUs drop', val: num(skusDrop), color: '#a78bfa' },
+                  ].map((k, i) => (
+                    <div key={i} style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '14px 16px', position: 'relative', overflow: 'hidden' }}>
+                      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg,${k.color},transparent)` }} />
+                      <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' as any, letterSpacing: '0.4px', marginBottom: 6 }}>{k.label}</div>
+                      <div style={{ fontSize: 24, fontWeight: 700, color: '#f1f5f9' }}>{k.val}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Search */}
+                <div style={{ marginBottom: 16 }}>
+                  <input
+                    type="text"
+                    placeholder="Buscar por produto, variante ou SKU..."
+                    value={catalogSearch}
+                    onChange={e => setCatalogSearch(e.target.value)}
+                    style={{ width: '100%', padding: '9px 14px', background: '#141320', border: '1px solid #2d2d3d', borderRadius: 10, color: '#e2e8f0', fontSize: 13, boxSizing: 'border-box' as any }}
+                  />
+                </div>
+
+                {/* Esculturas section */}
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#f59e0b' }}>Esculturas</span>
+                    <span style={{ fontSize: 11, color: '#64748b', background: '#1e1d2e', padding: '2px 8px', borderRadius: 10 }}>{esculturas.length} produto{esculturas.length !== 1 ? 's' : ''}</span>
+                  </div>
+                  <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, overflow: 'hidden' }}>
+                    {esculturas.length === 0 ? (
+                      <div style={{ padding: 24, textAlign: 'center', fontSize: 13, color: '#475569' }}>Nenhuma escultura encontrada.</div>
+                    ) : renderProductList(esculturas)}
+                  </div>
+                </div>
+
+                {/* Produtos Drop section */}
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#10b981' }}>Produtos Drop</span>
+                    <span style={{ fontSize: 11, color: '#64748b', background: '#1e1d2e', padding: '2px 8px', borderRadius: 10 }}>{drop.length} produto{drop.length !== 1 ? 's' : ''}</span>
+                  </div>
+                  <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, overflow: 'hidden' }}>
+                    {drop.length === 0 ? (
+                      <div style={{ padding: 24, textAlign: 'center', fontSize: 13, color: '#475569' }}>Nenhum produto drop encontrado.</div>
+                    ) : renderProductList(drop)}
+                  </div>
+                </div>
+              </>
+            )
+          })()}
         </>
       )}
     </div>
