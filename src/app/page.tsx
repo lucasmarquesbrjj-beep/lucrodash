@@ -205,6 +205,7 @@ function DashPage({ taxas }: { taxas: any }) {
       <style>{`
         @media(max-width:600px){.grid-lucro-pedidos{grid-template-columns:1fr!important}}
         @keyframes ld-slide{0%{left:-50%;width:45%}60%{width:55%}100%{left:110%;width:45%}}
+        @keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
       `}</style>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
         <div>
@@ -242,30 +243,99 @@ function DashPage({ taxas }: { taxas: any }) {
       </div>
 
       {loading && (() => {
-        const isFast = ['today','yesterday','anteontem'].includes(filter)
-        if (isFast) return (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 14 }}>
-            {Array(7).fill(0).map((_, i) => (
-              <div key={i} style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '14px 16px', position: 'relative', overflow: 'hidden' }}>
-                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: 'linear-gradient(90deg,#2d2d3d,transparent)' }} />
-                <div style={{ height: 10, width: '60%', background: '#1e1d2e', borderRadius: 4, marginBottom: 10 }} />
-                <div style={{ height: 24, width: '75%', background: '#1e1d2e', borderRadius: 4, marginBottom: 8 }} />
-                <div style={{ height: 10, width: '40%', background: '#1e1d2e', borderRadius: 4 }} />
-              </div>
-            ))}
-          </div>
-        )
-        const msg = filter === '30d'
-          ? 'Carregando 30 dias de pedidos, aguarde...'
-          : (filter === 'year' || filter === 'lastyear')
-            ? 'Carregando dados do ano inteiro, pode levar até 60s...'
-            : 'Carregando pedidos...'
+        const sh: React.CSSProperties = {
+          background: 'linear-gradient(90deg,#1a1929 25%,#252436 50%,#1a1929 75%)',
+          backgroundSize: '400px 100%',
+          animation: 'shimmer 1.4s infinite linear',
+          borderRadius: 6,
+        }
+        const card = (w: string, h: number) => <div style={{ ...sh, width: w, height: h }} />
+        const isSlow = ['30d','7d','month','year','lastyear'].includes(filter)
         return (
-          <div style={{ padding: '60px 20px', textAlign: 'center' }}>
-            <div style={{ maxWidth: 360, margin: '0 auto' }}>
-              <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 14 }}>{msg}</div>
-              <div style={{ height: 5, background: '#1e1d2e', borderRadius: 3, overflow: 'hidden', position: 'relative' }}>
-                <div style={{ position: 'absolute', top: 0, height: '100%', background: 'linear-gradient(90deg,#4338ca,#7c3aed)', borderRadius: 3, animation: 'ld-slide 1.6s ease-in-out infinite' }} />
+          <div>
+            {isSlow && (
+              <div style={{ marginBottom: 14, padding: '8px 14px', background: '#141320', border: '1px solid #1e1d2e', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ height: 4, flex: 1, background: '#1e1d2e', borderRadius: 2, overflow: 'hidden', position: 'relative' }}>
+                  <div style={{ position: 'absolute', top: 0, height: '100%', background: 'linear-gradient(90deg,#4338ca,#7c3aed)', borderRadius: 2, animation: 'ld-slide 1.6s ease-in-out infinite' }} />
+                </div>
+                <span style={{ fontSize: 11, color: '#475569', whiteSpace: 'nowrap' as any }}>
+                  {filter === 'year' || filter === 'lastyear' ? 'Carregando ano inteiro...' : 'Carregando pedidos...'}
+                </span>
+              </div>
+            )}
+            {/* KPI cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 14 }}>
+              {Array(7).fill(0).map((_, i) => (
+                <div key={i} style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '14px 16px' }}>
+                  {card('55%', 9)}<div style={{ height: 8 }} />{card('72%', 22)}<div style={{ height: 7 }} />{card('40%', 9)}
+                </div>
+              ))}
+            </div>
+            {/* Lucro + Pedidos */}
+            <div className="grid-lucro-pedidos" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+              {[Array(9).fill(0), Array(10).fill(0)].map((rows, ci) => (
+                <div key={ci} style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '16px 18px' }}>
+                  {card('40%', 9)}<div style={{ height: 14 }} />
+                  {rows.map((_, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #1a1929' }}>
+                      {card(`${40 + (i % 3) * 10}%`, 9)}{card('22%', 9)}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+            {/* Métodos de pagamento */}
+            <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '16px 18px', marginBottom: 14 }}>
+              {card('35%', 9)}<div style={{ height: 14 }} />
+              <div style={{ ...sh, height: 10, borderRadius: 6, marginBottom: 18 }} />
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 12 }}>
+                {Array(3).fill(0).map((_, i) => (
+                  <div key={i} style={{ background: '#1a1929', border: '1px solid #1e1d2e', borderRadius: 12, padding: '12px 14px' }}>
+                    {card('60%', 9)}<div style={{ height: 10 }} />{card('100%', 4)}<div style={{ height: 10 }} />
+                    {Array(3).fill(0).map((__, j) => (
+                      <div key={j} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
+                        {card('45%', 9)}{card('20%', 9)}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* Funil */}
+            <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '16px 18px', marginBottom: 14 }}>
+              {card('30%', 9)}<div style={{ height: 16 }} />
+              {Array(2).fill(0).map((_, i) => (
+                <div key={i}>
+                  {i > 0 && <div style={{ height: 32 }} />}
+                  <div style={{ background: '#1a1929', border: '1px solid #2d2d3d', borderRadius: 10, padding: '12px 14px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+                      {card('38%', 13)}{card('18%', 18)}
+                    </div>
+                    {card('100%', 5)}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* Horas + Meta */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 12, marginBottom: 14 }}>
+              <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: 18 }}>
+                {card('35%', 9)}<div style={{ height: 12 }} />
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 80 }}>
+                  {Array(24).fill(0).map((_, i) => {
+                    const h = [20,15,25,18,30,22,35,28,40,55,65,70,75,72,68,80,85,78,60,45,35,28,22,18][i] || 20
+                    return <div key={i} style={{ ...sh, flex: 1, height: `${h}%`, borderRadius: '2px 2px 0 0' }} />
+                  })}
+                </div>
+              </div>
+              <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: 18 }}>
+                {card('38%', 9)}<div style={{ height: 12 }} />
+                {card('55%', 22)}<div style={{ height: 6 }} />{card('42%', 10)}<div style={{ height: 12 }} />
+                {card('100%', 6)}<div style={{ height: 12 }} />
+                {Array(3).fill(0).map((_, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0' }}>
+                    {card('45%', 9)}{card('25%', 9)}
+                  </div>
+                ))}
               </div>
             </div>
           </div>
