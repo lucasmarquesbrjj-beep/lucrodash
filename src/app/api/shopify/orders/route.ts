@@ -2,8 +2,49 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const SHOP = 'pelos-pets-9091.myshopify.com';
 const TOKEN = process.env.SHOPIFY_ACCESS_TOKEN!;
+const SB_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SB_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export const maxDuration = 60;
+
+function isCacheValid(updatedAt: string, filter: string): boolean {
+  const now = new Date();
+  const cache = new Date(updatedAt);
+  const diffMs = now.getTime() - cache.getTime();
+  if (filter === 'today') return diffMs < 30 * 60 * 1000;
+  if (['yesterday', 'anteontem', '7d', '30d', 'month'].includes(filter)) {
+    const fmt = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+    return fmt(now) === fmt(cache);
+  }
+  if (filter === 'year' || filter === 'lastyear') return diffMs < 7 * 24 * 60 * 60 * 1000;
+  return false;
+}
+
+async function readCache(filter: string): Promise<any | null> {
+  try {
+    const res = await fetch(
+      `${SB_URL}/rest/v1/cache_dashboard?filtro=eq.${encodeURIComponent(filter)}&select=dados,updated_at&limit=1`,
+      { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` }, cache: 'no-store' }
+    );
+    if (!res.ok) return null;
+    const rows = await res.json();
+    if (!rows[0] || !isCacheValid(rows[0].updated_at, filter)) return null;
+    return rows[0].dados;
+  } catch { return null; }
+}
+
+async function writeCache(filter: string, data: object): Promise<void> {
+  try {
+    await fetch(`${SB_URL}/rest/v1/cache_dashboard`, {
+      method: 'POST',
+      headers: {
+        apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`,
+        'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates',
+      },
+      body: JSON.stringify({ filtro: filter, dados: data, updated_at: new Date().toISOString() }),
+    });
+  } catch {}
+}
 
 function nowBrasilia() {
   return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
@@ -167,7 +208,12 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  // Non-streaming (used by monthData and other plain fetches)
+  // Non-streaming — check cache first
+  if (!filter.startsWith('custom:')) {
+    const cached = await readCache(filter);
+    if (cached) return NextResponse.json({ ...cached, fromCache: true });
+  }
+
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), 55000);
   try {
@@ -187,7 +233,9 @@ export async function GET(request: NextRequest) {
       const next = res.headers.get('Link')?.match(/<([^>]+)>;\s*rel="next"/);
       pageUrl = next ? next[1] : null;
     }
-    return NextResponse.json({ ...computeStats(allOrders), truncated: allOrders.length >= maxOrders });
+    const result = { ...computeStats(allOrders), truncated: allOrders.length >= maxOrders };
+    if (!filter.startsWith('custom:')) writeCache(filter, result);
+    return NextResponse.json(result);
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   } finally {
