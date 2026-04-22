@@ -121,15 +121,23 @@ function DashPage({ taxas }: { taxas: any }) {
 
   useEffect(() => {
     let cancelled = false
-    setMetaLoading(true); setMetaSpend(null); setProducts([]); setFunnel(null)
+    setProducts([]); setFunnel(null)
 
-    // Show cached data immediately (stale-while-revalidate)
+    // Stale-while-revalidate for orders
     const cacheKey = `hd_${filter}`
     try {
       const stale = sessionStorage.getItem(cacheKey)
       if (stale) { setData(JSON.parse(stale)); setLoading(false) }
       else { setData(null); setLoading(true) }
     } catch { setData(null); setLoading(true) }
+
+    // Stale-while-revalidate for meta spend
+    const metaKey = `hd_meta_${filter}`
+    try {
+      const staleMeta = sessionStorage.getItem(metaKey)
+      if (staleMeta !== null) { setMetaSpend(Number(staleMeta)); setMetaLoading(false) }
+      else { setMetaSpend(null); setMetaLoading(true) }
+    } catch { setMetaSpend(null); setMetaLoading(true) }
 
     fetch(`/api/shopify/orders?filter=${filter}`)
       .then(r => r.json())
@@ -142,7 +150,12 @@ function DashPage({ taxas }: { taxas: any }) {
       .catch(() => { if (!cancelled) setLoading(false) })
     fetch(`/api/meta/spend?filter=${filter}`)
       .then(r => r.json())
-      .then(d => { if (!cancelled) { if (typeof d.spend === 'number') setMetaSpend(d.spend); setMetaLoading(false) } })
+      .then(d => {
+        if (!cancelled && typeof d.spend === 'number') {
+          setMetaSpend(d.spend); setMetaLoading(false)
+          try { sessionStorage.setItem(metaKey, String(d.spend)) } catch {}
+        }
+      })
       .catch(() => { if (!cancelled) setMetaLoading(false) })
     fetch('/api/shopify/orders?filter=month')
       .then(r => r.json()).then(d => { if (!cancelled) setMonthData(d) }).catch(() => {})
