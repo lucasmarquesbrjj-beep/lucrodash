@@ -120,11 +120,17 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const totalRevenue = Object.values(variantMap).reduce((s, v) => s + v.revenue, 0);
     const products = Object.values(variantMap)
+      .map(p => ({
+        ...p,
+        ticket_medio: p.qty > 0 ? p.revenue / p.qty : 0,
+        pct: totalRevenue > 0 ? (p.revenue / totalRevenue) * 100 : 0,
+      }))
       .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 10);
+      .slice(0, 20);
 
-    return NextResponse.json({ products });
+    return NextResponse.json({ products, totalRevenue });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   } finally {
