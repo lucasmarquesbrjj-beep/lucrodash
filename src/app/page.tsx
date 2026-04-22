@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useLayoutEffect } from 'react'
 
 const brl = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
 const num = (v: number) => new Intl.NumberFormat('pt-BR').format(v)
@@ -120,11 +120,25 @@ function DashPage({ taxas }: { taxas: any }) {
   const metaGoal = taxas.meta_mensal ?? 250000
 
   useEffect(() => {
-    setData(null); setLoading(true); setMetaLoading(true); setMetaSpend(null); setProducts([]); setFunnel(null)
     let cancelled = false
+    setMetaLoading(true); setMetaSpend(null); setProducts([]); setFunnel(null)
+
+    // Show cached data immediately (stale-while-revalidate)
+    const cacheKey = `hd_${filter}`
+    try {
+      const stale = sessionStorage.getItem(cacheKey)
+      if (stale) { setData(JSON.parse(stale)); setLoading(false) }
+      else { setData(null); setLoading(true) }
+    } catch { setData(null); setLoading(true) }
+
     fetch(`/api/shopify/orders?filter=${filter}`)
       .then(r => r.json())
-      .then(d => { if (!cancelled) { if (!d?.error) setData(d); setLoading(false) } })
+      .then(d => {
+        if (!cancelled && !d?.error) {
+          setData(d); setLoading(false)
+          try { sessionStorage.setItem(cacheKey, JSON.stringify(d)) } catch {}
+        }
+      })
       .catch(() => { if (!cancelled) setLoading(false) })
     fetch(`/api/meta/spend?filter=${filter}`)
       .then(r => r.json())
@@ -1082,10 +1096,14 @@ export default function App() {
   const [page, setPage] = useState<Page>('dashboard')
   const [menuOpen, setMenuOpen] = useState(false)
   const [taxas, setTaxas] = useState<any>({})
-  const [user, setUser] = useState<string | null>(() => {
-    try { return localStorage.getItem('holydash_user') } catch { return null }
-  })
+  const [user, setUser] = useState<string | null>(null)
+  const [authReady, setAuthReady] = useState(false)
   const [toast, setToast] = useState('')
+
+  useLayoutEffect(() => {
+    setUser(localStorage.getItem('holydash_user'))
+    setAuthReady(true)
+  }, [])
 
   const refreshTaxas = () => fetch('/api/taxas').then(r => r.json()).then(setTaxas)
 
@@ -1093,6 +1111,7 @@ export default function App() {
     if (user) refreshTaxas()
   }, [user])
 
+  if (!authReady) return <div style={{ minHeight: '100vh', background: '#0a0918' }} />
   if (!user) return <LoginPage onLogin={setUser} />
 
   return (
