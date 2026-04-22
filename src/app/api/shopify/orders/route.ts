@@ -29,7 +29,10 @@ async function readCache(filter: string): Promise<any | null> {
     if (!res.ok) return null;
     const rows = await res.json();
     if (!rows[0] || !isCacheValid(rows[0].updated_at, filter)) return null;
-    return rows[0].dados;
+    const dados = rows[0].dados;
+    // Reject cached zeros for historical filters — likely from an aborted cron fetch
+    if (filter !== 'today' && (dados?.pedidosGerados ?? 0) === 0) return null;
+    return dados;
   } catch { return null; }
 }
 
@@ -214,8 +217,9 @@ export async function GET(request: NextRequest) {
     if (cached) return NextResponse.json({ ...cached, fromCache: true });
   }
 
+  let aborted = false;
   const abort = new AbortController();
-  const timer = setTimeout(() => abort.abort(), 55000);
+  const timer = setTimeout(() => { abort.abort(); aborted = true; }, 55000);
   try {
     const allOrders: any[] = [];
     let pageUrl: string | null = firstUrl;
@@ -234,7 +238,7 @@ export async function GET(request: NextRequest) {
       pageUrl = next ? next[1] : null;
     }
     const result = { ...computeStats(allOrders), truncated: allOrders.length >= maxOrders };
-    if (!filter.startsWith('custom:')) writeCache(filter, result);
+    if (!filter.startsWith('custom:') && !aborted && allOrders.length > 0) writeCache(filter, result);
     return NextResponse.json(result);
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });

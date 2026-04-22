@@ -107,9 +107,10 @@ async function fetchAndCache(filter: string): Promise<{ ok: boolean; orders: num
   const isLarge = filter === 'year' || filter === 'lastyear';
   const maxOrders = isLarge ? 5000 : 50000;
 
+  let aborted = false;
   const abort = new AbortController();
   // Per-filter timeout: 25s for large, 20s for others
-  const timer = setTimeout(() => abort.abort(), isLarge ? 25000 : 20000);
+  const timer = setTimeout(() => { abort.abort(); aborted = true; }, isLarge ? 25000 : 20000);
 
   try {
     const allOrders: any[] = [];
@@ -131,18 +132,20 @@ async function fetchAndCache(filter: string): Promise<{ ok: boolean; orders: num
       pageUrl = next ? next[1] : null;
     }
 
-    const data = { ...computeStats(allOrders), truncated: allOrders.length >= maxOrders };
+    // Don't write zeros to cache — aborted fetch poisons the cache with empty results
+    if (!aborted && allOrders.length > 0) {
+      const data = { ...computeStats(allOrders), truncated: allOrders.length >= maxOrders };
+      await fetch(`${SB_URL}/rest/v1/cache_dashboard`, {
+        method: 'POST',
+        headers: {
+          apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`,
+          'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates',
+        },
+        body: JSON.stringify({ filtro: filter, dados: data, updated_at: new Date().toISOString() }),
+      });
+    }
 
-    await fetch(`${SB_URL}/rest/v1/cache_dashboard`, {
-      method: 'POST',
-      headers: {
-        apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`,
-        'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates',
-      },
-      body: JSON.stringify({ filtro: filter, dados: data, updated_at: new Date().toISOString() }),
-    });
-
-    return { ok: true, orders: allOrders.length };
+    return { ok: !aborted && allOrders.length > 0, orders: allOrders.length };
   } catch {
     return { ok: false, orders: 0 };
   } finally {
