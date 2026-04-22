@@ -251,10 +251,11 @@ function DashPage({ taxas }: { taxas: any }) {
                 { label: 'PIX pendente', val: num(Math.round((d.pixPendente || 0) * m)) },
                 { label: 'Boleto pago', val: num(Math.round((d.boletoPago || 0) * m)), hi: true },
                 { label: 'Boleto pendente', val: num(Math.round((d.boletoPendente || 0) * m)) },
+                { label: 'Reenvios', val: `${Math.round((d.reenvios || 0) * m)} (${d.reenviosPct || 0}%)`, red: true },
               ].map((r, i) => (
                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #1a1929', fontSize: 12 }}>
                   <span style={{ color: '#94a3b8' }}>{r.label}</span>
-                  <span style={{ fontWeight: 600, color: r.hi ? '#a5b4fc' : '#e2e8f0' }}>{r.val}</span>
+                  <span style={{ fontWeight: 600, color: (r as any).red ? '#fca5a5' : r.hi ? '#a5b4fc' : '#e2e8f0' }}>{r.val}</span>
                 </div>
               ))}
             </div>

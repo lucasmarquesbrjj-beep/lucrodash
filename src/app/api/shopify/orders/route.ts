@@ -79,6 +79,13 @@ export async function GET(request: NextRequest) {
     const orders = allOrders;
     const pagos = orders.filter((o: any) => o.financial_status === 'paid');
     const pagosValidos = pagos.filter((o: any) => parseFloat(o.total_price || '0') >= 1);
+    const reenvios = pagos.filter((o: any) =>
+      parseFloat(o.total_price || '0') < 1 &&
+      (o.line_items || []).some((li: any) => li.title?.toLowerCase().includes('reenvio'))
+    );
+    const reenviosPct = pagosValidos.length > 0
+      ? Math.round((reenvios.length / pagosValidos.length) * 100)
+      : 0;
     const pendentes = orders.filter((o: any) => ['pending','partially_paid'].includes(o.financial_status));
 
     const faturamentoPago = pagos.reduce((s: number, o: any) => s + parseFloat(o.total_price || '0'), 0);
@@ -131,6 +138,8 @@ export async function GET(request: NextRequest) {
       ticketMedio,
       descontos,
       frete,
+      reenvios: reenvios.length,
+      reenviosPct,
       hourly,
       states,
     });
