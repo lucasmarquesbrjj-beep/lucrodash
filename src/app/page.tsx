@@ -112,45 +112,25 @@ function DashPage({ taxas }: { taxas: any }) {
   const [customEnd, setCustomEnd] = useState('')
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const [loadingCount, setLoadingCount] = useState(0)
   const [metaSpend, setMetaSpend] = useState<number | null>(null)
   const [monthData, setMonthData] = useState<any>(null)
   const [products, setProducts] = useState<any[]>([])
   const metaGoal = taxas.meta_mensal ?? 250000
 
   useEffect(() => {
-    setData(null); setLoading(true); setLoadingCount(0); setMetaSpend(null); setProducts([])
-    const ctrl = new AbortController()
+    setData(null); setLoading(true); setMetaSpend(null); setProducts([])
     let cancelled = false
-    ;(async () => {
-      try {
-        const res = await fetch(`/api/shopify/orders?filter=${filter}&stream=1`, { signal: ctrl.signal })
-        const reader = res.body!.getReader()
-        const dec = new TextDecoder()
-        let buf = ''
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done || cancelled) break
-          buf += dec.decode(value, { stream: true })
-          const lines = buf.split('\n'); buf = lines.pop() ?? ''
-          for (const line of lines) {
-            if (!line.trim()) continue
-            try {
-              const msg = JSON.parse(line)
-              if (msg.type === 'progress' && !cancelled) setLoadingCount(msg.count)
-              else if (msg.type === 'result' && !cancelled) { setData(msg.data); setLoading(false) }
-            } catch {}
-          }
-        }
-      } catch { if (!cancelled) setLoading(false) }
-    })()
+    fetch(`/api/shopify/orders?filter=${filter}`)
+      .then(r => r.json())
+      .then(d => { if (!cancelled) { setData(d); setLoading(false) } })
+      .catch(() => { if (!cancelled) setLoading(false) })
     fetch(`/api/meta/spend?filter=${filter}`)
       .then(r => r.json()).then(d => { if (!cancelled && typeof d.spend === 'number') setMetaSpend(d.spend) }).catch(() => {})
     fetch('/api/shopify/orders?filter=month')
       .then(r => r.json()).then(d => { if (!cancelled) setMonthData(d) }).catch(() => {})
     fetch(`/api/shopify/products?filter=${filter}`)
       .then(r => r.json()).then(d => { if (!cancelled && Array.isArray(d.products)) setProducts(d.products) }).catch(() => {})
-    return () => { cancelled = true; ctrl.abort() }
+    return () => { cancelled = true }
   }, [filter])
 
   const d = data || {}
@@ -184,7 +164,10 @@ function DashPage({ taxas }: { taxas: any }) {
 
   return (
     <div>
-      <style>{`@media(max-width:600px){.grid-lucro-pedidos{grid-template-columns:1fr!important}}`}</style>
+      <style>{`
+        @media(max-width:600px){.grid-lucro-pedidos{grid-template-columns:1fr!important}}
+        @keyframes ld-slide{0%{left:-50%;width:45%}60%{width:55%}100%{left:110%;width:45%}}
+      `}</style>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 700, color: '#f1f5f9' }}>Dashboard</h1>
@@ -220,24 +203,25 @@ function DashPage({ taxas }: { taxas: any }) {
         ))}
       </div>
 
-      {loading && (
-        <div style={{ padding: '60px 20px', textAlign: 'center' }}>
-          <div style={{ maxWidth: 360, margin: '0 auto' }}>
-            <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 14 }}>
-              {loadingCount > 0
-                ? `Buscando pedidos... ${loadingCount} encontrados`
-                : (filter === 'year' || filter === 'lastyear')
-                  ? 'Carregando dados do ano, isso pode levar até 30s...'
-                  : 'Buscando pedidos... aguarde'}
-            </div>
-            <div style={{ height: 6, background: '#1e1d2e', borderRadius: 3, overflow: 'hidden' }}>
-              <div style={{ height: '100%', background: 'linear-gradient(90deg,#4338ca,#7c3aed)', borderRadius: 3,
-                width: `${loadingCount > 0 ? Math.max(4, Math.min((loadingCount / 5000) * 100, 95)) : 4}%`,
-                transition: 'width 0.3s ease' }} />
+      {loading && (() => {
+        const isFast = ['today','yesterday','anteontem'].includes(filter)
+        if (isFast) return null
+        const msg = filter === '30d'
+          ? 'Carregando 30 dias de pedidos, aguarde...'
+          : (filter === 'year' || filter === 'lastyear')
+            ? 'Carregando dados do ano inteiro, pode levar até 60s...'
+            : 'Carregando pedidos...'
+        return (
+          <div style={{ padding: '60px 20px', textAlign: 'center' }}>
+            <div style={{ maxWidth: 360, margin: '0 auto' }}>
+              <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 14 }}>{msg}</div>
+              <div style={{ height: 5, background: '#1e1d2e', borderRadius: 3, overflow: 'hidden', position: 'relative' }}>
+                <div style={{ position: 'absolute', top: 0, height: '100%', background: 'linear-gradient(90deg,#4338ca,#7c3aed)', borderRadius: 3, animation: 'ld-slide 1.6s ease-in-out infinite' }} />
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
       {!loading && (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 14 }}>
