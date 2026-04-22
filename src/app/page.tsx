@@ -116,7 +116,7 @@ function DashPage({ taxas }: { taxas: any }) {
   const [metaSpend, setMetaSpend] = useState<number | null>(null)
   const [monthData, setMonthData] = useState<any>(null)
   const [products, setProducts] = useState<any[]>([])
-  const [funnel, setFunnel] = useState<{ abandoned: number } | null>(null)
+  const [funnel, setFunnel] = useState<{ abandoned: number; sessions: number | null; sessionsCart: number | null } | null>(null)
   const metaGoal = taxas.meta_mensal ?? 250000
 
   useEffect(() => {
@@ -135,7 +135,9 @@ function DashPage({ taxas }: { taxas: any }) {
     fetch(`/api/shopify/products?filter=${filter}`)
       .then(r => r.json()).then(d => { if (!cancelled && Array.isArray(d.products)) setProducts(d.products) }).catch(() => {})
     fetch(`/api/shopify/funnel?filter=${filter}`)
-      .then(r => r.json()).then(d => { if (!cancelled) setFunnel({ abandoned: d.abandoned ?? 0 }) }).catch(() => {})
+      .then(r => r.json())
+      .then(d => { if (!cancelled) setFunnel({ abandoned: d.abandoned ?? 0, sessions: typeof d.sessions === 'number' ? d.sessions : null, sessionsCart: typeof d.sessionsCart === 'number' ? d.sessionsCart : null }) })
+      .catch(() => {})
     return () => { cancelled = true }
   }, [filter])
 
@@ -374,35 +376,46 @@ function DashPage({ taxas }: { taxas: any }) {
           </div>
 
           {(() => {
-            const abandoned = funnel?.abandoned ?? 0
-            const gerados   = Math.round((d.pedidosGerados || 0) * m)
-            const pagos     = Math.round((d.pedidosPagos   || 0) * m)
-            const iniciados = abandoned + gerados
-            const steps = [
+            const abandoned    = funnel?.abandoned ?? 0
+            const gerados      = Math.round((d.pedidosGerados || 0) * m)
+            const pagos        = Math.round((d.pedidosPagos   || 0) * m)
+            const iniciados    = abandoned + gerados
+            const sessions     = funnel?.sessions     ?? null
+            const sessionsCart = funnel?.sessionsCart ?? null
+            const hasVisits    = sessions     !== null && sessions > 0
+            const hasCart      = sessionsCart !== null && sessionsCart > 0
+
+            const steps: { label: string; sub: string; val: number; color: string; bg: string }[] = [
+              ...(hasVisits ? [{ label: 'Visitas únicas',    sub: 'sessões na loja',                    val: sessions!,     color: '#f59e0b', bg: 'rgba(245,158,11,0.13)' }] : []),
+              ...(hasCart   ? [{ label: 'Carrinhos criados', sub: 'sessões com produto adicionado',      val: sessionsCart!, color: '#06b6d4', bg: 'rgba(6,182,212,0.13)'  }] : []),
               { label: 'Checkouts iniciados', sub: 'abandonados + pedidos gerados', val: iniciados, color: '#6366f1', bg: 'rgba(99,102,241,0.18)' },
               { label: 'Pedidos gerados',     sub: 'checkout finalizado',            val: gerados,   color: '#a78bfa', bg: 'rgba(167,139,250,0.15)' },
               { label: 'Pedidos pagos',       sub: 'pagamento confirmado',           val: pagos,     color: '#34d399', bg: 'rgba(52,211,153,0.13)' },
             ]
-            const maxVal = iniciados || 1
+            const maxVal = (steps[0]?.val) || 1
+
             return (
               <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '16px 18px', marginBottom: 14 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
                   <div style={{ fontSize: 10, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as any, letterSpacing: '0.5px' }}>Funil de Vendas</div>
-                  {funnel === null && <span style={{ fontSize: 11, color: '#475569' }}>Carregando...</span>}
+                  <span style={{ fontSize: 10, color: '#475569' }}>
+                    {funnel === null ? 'Carregando...' : !hasVisits ? 'Sessões não disponíveis — exibindo a partir de checkouts' : ''}
+                  </span>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column' as any, gap: 0 }}>
                   {steps.map((step, i) => {
                     const barPct  = (step.val / maxVal) * 100
-                    const convPct = i === 0 ? 100 : steps[i - 1].val > 0 ? (step.val / steps[i - 1].val) * 100 : 0
-                    const dropPct = i === 0 ? 0 : 100 - convPct
+                    const prevVal = i > 0 ? steps[i - 1].val : null
+                    const convPct = prevVal !== null && prevVal > 0 ? (step.val / prevVal) * 100 : null
+                    const dropPct = convPct !== null ? 100 - convPct : null
                     return (
                       <div key={i}>
-                        {i > 0 && (
+                        {i > 0 && convPct !== null && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0 6px 12px' }}>
                             <div style={{ width: 1, height: 20, background: '#2d2d3d', marginLeft: 8 }} />
-                            <div style={{ fontSize: 11, color: dropPct > 50 ? '#f87171' : dropPct > 20 ? '#fbbf24' : '#34d399' }}>
+                            <div style={{ fontSize: 11, color: dropPct! > 50 ? '#f87171' : dropPct! > 20 ? '#fbbf24' : '#34d399' }}>
                               ↓ {convPct.toFixed(1)}% converteram
-                              <span style={{ color: '#475569', marginLeft: 6 }}>({dropPct.toFixed(1)}% saíram)</span>
+                              <span style={{ color: '#475569', marginLeft: 6 }}>({dropPct!.toFixed(1)}% saíram)</span>
                             </div>
                           </div>
                         )}
@@ -413,8 +426,10 @@ function DashPage({ taxas }: { taxas: any }) {
                               <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>{step.sub}</div>
                             </div>
                             <div style={{ textAlign: 'right' as any }}>
-                              <div style={{ fontSize: 20, fontWeight: 700, color: step.color }}>{funnel === null && i === 0 ? '—' : num(step.val)}</div>
-                              <div style={{ fontSize: 10, color: '#64748b' }}>{barPct.toFixed(1)}% do topo</div>
+                              <div style={{ fontSize: 20, fontWeight: 700, color: step.color }}>{num(step.val)}</div>
+                              <div style={{ fontSize: 10, color: '#64748b' }}>
+                                {convPct !== null ? `${convPct.toFixed(1)}% da etapa anterior` : 'topo do funil'}
+                              </div>
                             </div>
                           </div>
                           <div style={{ height: 5, background: '#1e1d2e', borderRadius: 3, overflow: 'hidden' }}>
@@ -429,7 +444,7 @@ function DashPage({ taxas }: { taxas: any }) {
                   <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #1e1d2e', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
                       <span style={{ fontSize: 12, color: '#94a3b8' }}>Carrinhos abandonados</span>
-                      <div style={{ fontSize: 10, color: '#475569', marginTop: 2 }}>chegaram ao checkout mas não geraram pedido</div>
+                      <div style={{ fontSize: 10, color: '#475569', marginTop: 2 }}>pessoas que iniciaram checkout mas não compraram</div>
                     </div>
                     <div style={{ textAlign: 'right' as any }}>
                       <div style={{ fontSize: 15, fontWeight: 700, color: '#f87171' }}>{num(abandoned)}</div>
