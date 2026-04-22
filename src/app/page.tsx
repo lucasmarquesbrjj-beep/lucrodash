@@ -374,23 +374,37 @@ function DashPage({ taxas }: { taxas: any }) {
           </div>
 
           {(() => {
-            const abandoned = funnel?.abandoned ?? 0
-            const gerados   = Math.round((d.pedidosGerados || 0) * m)
-            const pagos     = Math.round((d.pedidosPagos   || 0) * m)
-            const iniciados = abandoned + gerados
-            const steps = [
-              { label: 'Checkouts iniciados', sub: 'carrinhos abandonados + pedidos gerados', val: iniciados, color: '#6366f1', bg: 'rgba(99,102,241,0.18)' },
-              { label: 'Pedidos gerados',     sub: 'checkout finalizado',                     val: gerados,   color: '#a78bfa', bg: 'rgba(167,139,250,0.15)' },
-              { label: 'Pedidos pagos',       sub: 'pagamento confirmado',                    val: pagos,     color: '#34d399', bg: 'rgba(52,211,153,0.13)' },
-            ]
-            const maxVal    = iniciados || 1
-            const taxaConv  = iniciados > 0 ? (pagos / iniciados) * 100 : 0
+            const abandoned    = funnel?.abandoned ?? 0
+            const gerados      = Math.round((d.pedidosGerados || 0) * m)
+            const pagos        = Math.round((d.pedidosPagos   || 0) * m)
+            // Only show 3-step funnel when we have real abandoned cart data (> 0)
+            const hasAbandoned = funnel !== null && abandoned > 0
+            const iniciados    = hasAbandoned ? abandoned + gerados : gerados
+            const steps = hasAbandoned
+              ? [
+                  { label: 'Checkouts iniciados', sub: 'carrinhos abandonados + pedidos gerados', val: iniciados, color: '#6366f1', bg: 'rgba(99,102,241,0.18)' },
+                  { label: 'Pedidos gerados',     sub: 'checkout finalizado',                     val: gerados,   color: '#a78bfa', bg: 'rgba(167,139,250,0.15)' },
+                  { label: 'Pedidos pagos',       sub: 'pagamento confirmado',                    val: pagos,     color: '#34d399', bg: 'rgba(52,211,153,0.13)' },
+                ]
+              : [
+                  { label: 'Pedidos gerados', sub: 'checkout finalizado',    val: gerados, color: '#a78bfa', bg: 'rgba(167,139,250,0.15)' },
+                  { label: 'Pedidos pagos',   sub: 'pagamento confirmado',   val: pagos,   color: '#34d399', bg: 'rgba(52,211,153,0.13)' },
+                ]
+            const maxVal   = (steps[0]?.val) || 1
+            const taxaConv = hasAbandoned
+              ? (iniciados > 0 ? (pagos / iniciados) * 100 : 0)
+              : (gerados   > 0 ? (pagos / gerados)   * 100 : 0)
             return (
               <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '16px 18px', marginBottom: 14 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: hasAbandoned || funnel === null ? 18 : 10 }}>
                   <div style={{ fontSize: 10, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as any, letterSpacing: '0.5px' }}>Funil de Vendas</div>
                   {funnel === null && <span style={{ fontSize: 11, color: '#475569' }}>Carregando...</span>}
                 </div>
+                {funnel !== null && !hasAbandoned && (
+                  <div style={{ fontSize: 11, color: '#64748b', marginBottom: 14, padding: '6px 10px', background: '#1a1929', borderRadius: 7, borderLeft: '3px solid #334155' }}>
+                    Dados de carrinho abandonado indisponíveis — exibindo pedidos gerados → pagos
+                  </div>
+                )}
                 <div style={{ display: 'flex', flexDirection: 'column' as any, gap: 0 }}>
                   {steps.map((step, i) => {
                     const barPct  = (step.val / maxVal) * 100
@@ -417,9 +431,7 @@ function DashPage({ taxas }: { taxas: any }) {
                               <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>{step.sub}</div>
                             </div>
                             <div style={{ textAlign: 'right' as any }}>
-                              <div style={{ fontSize: 20, fontWeight: 700, color: step.color }}>
-                                {funnel === null && i === 0 ? '—' : num(step.val)}
-                              </div>
+                              <div style={{ fontSize: 20, fontWeight: 700, color: step.color }}>{num(step.val)}</div>
                               <div style={{ fontSize: 10, color: '#64748b' }}>
                                 {convPct !== null ? `${convPct.toFixed(1)}% da etapa anterior` : 'topo do funil'}
                               </div>
@@ -435,8 +447,10 @@ function DashPage({ taxas }: { taxas: any }) {
                 </div>
                 <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #1e1d2e', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
-                    <span style={{ fontSize: 12, color: '#94a3b8' }}>Taxa de conversão final</span>
-                    <div style={{ fontSize: 10, color: '#475569', marginTop: 2 }}>pedidos pagos / checkouts iniciados</div>
+                    <span style={{ fontSize: 12, color: '#94a3b8' }}>Taxa de conversão</span>
+                    <div style={{ fontSize: 10, color: '#475569', marginTop: 2 }}>
+                      {hasAbandoned ? 'pedidos pagos / checkouts iniciados' : 'pedidos pagos / pedidos gerados'}
+                    </div>
                   </div>
                   <div style={{ fontSize: 18, fontWeight: 700, color: taxaConv >= 5 ? '#34d399' : taxaConv >= 2 ? '#fbbf24' : '#f87171' }}>
                     {taxaConv.toFixed(1)}%
