@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 const SHOP = 'pelos-pets-9091.myshopify.com';
 const TOKEN = process.env.SHOPIFY_ACCESS_TOKEN!;
 
+export const maxDuration = 60;
+
 function nowBrasilia() {
   return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
 }
@@ -54,6 +56,12 @@ export async function GET(request: NextRequest) {
     created_at_min = new Date(start.getTime() + 3 * 60 * 60 * 1000).toISOString();
   }
 
+  const isLargeFilter = filter === 'year' || filter === 'lastyear';
+  const maxOrders = isLargeFilter ? 5000 : 50000;
+
+  const controller = new AbortController();
+  const abortTimer = setTimeout(() => controller.abort(), 55000);
+
   try {
     const allOrders: any[] = [];
     const params = new URLSearchParams({
@@ -65,11 +73,18 @@ export async function GET(request: NextRequest) {
     });
     let pageUrl: string | null = `https://${SHOP}/admin/api/2024-01/orders.json?${params}`;
 
-    while (pageUrl) {
-      const res = await fetch(pageUrl, {
-        headers: { 'X-Shopify-Access-Token': TOKEN },
-        cache: 'no-store',
-      });
+    while (pageUrl && allOrders.length < maxOrders) {
+      let res: Response;
+      try {
+        res = await fetch(pageUrl, {
+          headers: { 'X-Shopify-Access-Token': TOKEN },
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+      } catch (fetchErr: any) {
+        if (fetchErr.name === 'AbortError') break;
+        throw fetchErr;
+      }
 
       if (!res.ok) {
         const err = await res.text();
@@ -112,5 +127,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ products });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  } finally {
+    clearTimeout(abortTimer);
   }
 }

@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 const SHOP = 'pelos-pets-9091.myshopify.com';
 const TOKEN = process.env.SHOPIFY_ACCESS_TOKEN!;
 
+export const maxDuration = 60;
+
 function nowBrasilia() {
   return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
 }
@@ -49,9 +51,16 @@ export async function GET(request: NextRequest) {
     created_at_min = start.toISOString();
     created_at_max = end.toISOString();
   } else {
+    // month (default)
     const start = new Date(now.getFullYear(), now.getMonth(), 1);
     created_at_min = new Date(start.getTime() + 3 * 60 * 60 * 1000).toISOString();
   }
+
+  const isLargeFilter = filter === 'year' || filter === 'lastyear';
+  const maxOrders = isLargeFilter ? 5000 : 50000;
+
+  const controller = new AbortController();
+  const abortTimer = setTimeout(() => controller.abort(), 55000);
 
   try {
     const allOrders: any[] = [];
@@ -63,13 +72,18 @@ export async function GET(request: NextRequest) {
     });
     let pageUrl: string | null = `https://${SHOP}/admin/api/2024-01/orders.json?${params}`;
 
-    while (pageUrl) {
-      const res = await fetch(pageUrl, {
-        headers: {
-          'X-Shopify-Access-Token': TOKEN,
-        },
-        cache: 'no-store',
-      });
+    while (pageUrl && allOrders.length < maxOrders) {
+      let res: Response;
+      try {
+        res = await fetch(pageUrl, {
+          headers: { 'X-Shopify-Access-Token': TOKEN },
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+      } catch (fetchErr: any) {
+        if (fetchErr.name === 'AbortError') break;
+        throw fetchErr;
+      }
 
       if (!res.ok) {
         const err = await res.text();
@@ -103,7 +117,7 @@ export async function GET(request: NextRequest) {
       const attrs = o.note_attributes || [];
       const attr = attrs.find((a: any) => a.name === 'shipping_payment_type');
       return (attr?.value || o.payment_gateway || '').toLowerCase();
-    }
+    };
 
     const cartaoAprovado = pagos.filter((o: any) => { const t = getPaymentType(o); return t === 'cc' || t.includes('credit') || t.includes('card'); }).length;
     const cartaoPendente = pendentes.filter((o: any) => { const t = getPaymentType(o); return t === 'cc' || t.includes('credit') || t.includes('card'); }).length;
@@ -130,7 +144,7 @@ export async function GET(request: NextRequest) {
       stateMap[s].revenue += parseFloat(o.total_price || '0');
     });
     const states = Object.entries(stateMap)
-      .map(([state, d]) => ({ state, orders: d.orders, revenue: d.revenue, pct: Math.round((d.orders / pagos.length) * 100) }))
+      .map(([state, d]) => ({ state, orders: d.orders, revenue: d.revenue, pct: Math.round((d.orders / (pagos.length || 1)) * 100) }))
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 6);
 
@@ -150,9 +164,12 @@ export async function GET(request: NextRequest) {
       reenviosPct,
       hourly,
       states,
+      truncated: allOrders.length >= maxOrders,
     });
 
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  } finally {
+    clearTimeout(abortTimer);
   }
 }

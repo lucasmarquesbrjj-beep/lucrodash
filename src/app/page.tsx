@@ -168,7 +168,15 @@ function DashPage({ taxas }: { taxas: any }) {
 
   return (
     <div>
-      <style>{`@media(max-width:600px){.grid-lucro-pedidos{grid-template-columns:1fr!important}}`}</style>
+      <style>{`
+        @media(max-width:600px){.grid-lucro-pedidos{grid-template-columns:1fr!important}}
+        @keyframes progress-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+      `}</style>
+      {loading && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 3, zIndex: 1000, overflow: 'hidden' }}>
+          <div style={{ height: '100%', background: 'linear-gradient(90deg,#4338ca,#7c3aed,#6366f1,#4338ca)', backgroundSize: '300% 100%', animation: 'progress-shimmer 1.5s linear infinite' }} />
+        </div>
+      )}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 700, color: '#f1f5f9' }}>Dashboard</h1>
@@ -204,7 +212,15 @@ function DashPage({ taxas }: { taxas: any }) {
         ))}
       </div>
 
-      {loading && <div style={{ textAlign: 'center', padding: 40, color: '#64748b' }}>⏳ Carregando dados...</div>}
+      {loading && (
+        <div style={{ textAlign: 'center', padding: 48, color: '#64748b' }}>
+          <div style={{ fontSize: 13, color: '#94a3b8' }}>
+            {(filter === 'year' || filter === 'lastyear')
+              ? '⏳ Carregando dados do ano, isso pode levar até 30s...'
+              : '⏳ Buscando pedidos... aguarde'}
+          </div>
+        </div>
+      )}
       {!loading && (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 14 }}>
