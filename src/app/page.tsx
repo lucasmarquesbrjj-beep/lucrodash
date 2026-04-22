@@ -156,6 +156,24 @@ function DashPage({ taxas }: { taxas: any }) {
   const cpaColor = cpa === null ? '#94a3b8' : cpa < (d.ticketMedio || 0) ? '#34d399' : '#f87171'
   const roas = tMa > 0 ? fat / tMa : null
   const roasColor = roas === null ? '#94a3b8' : roas >= 3 ? '#34d399' : roas >= 1.5 ? '#fbbf24' : '#f87171'
+
+  const ccAprov = Math.round((d.cartaoAprovado || 0) * m)
+  const ccPend  = Math.round((d.cartaoPendente || 0) * m)
+  const pixAprov = Math.round((d.pixPago || 0) * m)
+  const pixPend  = Math.round((d.pixPendente || 0) * m)
+  const bolAprov = Math.round((d.boletoPago || 0) * m)
+  const bolPend  = Math.round((d.boletoPendente || 0) * m)
+  const ccTotal  = ccAprov + ccPend
+  const pixTotal = pixAprov + pixPend
+  const bolTotal = bolAprov + bolPend
+  const totalAprovados = ccAprov + pixAprov + bolAprov
+  const ccPct  = totalAprovados > 0 ? (ccAprov / totalAprovados) * 100 : 0
+  const pixPct = totalAprovados > 0 ? (pixAprov / totalAprovados) * 100 : 0
+  const bolPct = totalAprovados > 0 ? (bolAprov / totalAprovados) * 100 : 0
+  const ccConv  = ccTotal  > 0 ? (ccAprov  / ccTotal)  * 100 : 0
+  const pixConv = pixTotal > 0 ? (pixAprov / pixTotal) * 100 : 0
+  const bolConv = bolTotal > 0 ? (bolAprov / bolTotal) * 100 : 0
+
   const monthFat = Math.round((monthData?.faturamentoPago || 0) * m)
   const pct = Math.min((monthFat / metaGoal) * 100, 100)
   const proj = (monthFat / (new Date().getDate())) * new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()
@@ -304,6 +322,49 @@ function DashPage({ taxas }: { taxas: any }) {
                 </div>
               ))}
             </div>
+          </div>
+
+          <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '16px 18px', marginBottom: 14 }}>
+            <div style={{ fontSize: 10, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as any, letterSpacing: '0.5px', marginBottom: 14 }}>Métodos de Pagamento</div>
+            {totalAprovados === 0 ? (
+              <div style={{ fontSize: 12, color: '#475569' }}>Sem pedidos pagos no período.</div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', height: 10, borderRadius: 6, overflow: 'hidden', marginBottom: 18, gap: 2 }}>
+                  {ccPct  > 0 && <div style={{ width: `${ccPct}%`,  background: '#7c3aed', borderRadius: '4px 0 0 4px' }} title={`Cartão ${ccPct.toFixed(1)}%`} />}
+                  {pixPct > 0 && <div style={{ width: `${pixPct}%`, background: '#34d399' }} title={`PIX ${pixPct.toFixed(1)}%`} />}
+                  {bolPct > 0 && <div style={{ width: `${bolPct}%`, background: '#fbbf24', borderRadius: '0 4px 4px 0' }} title={`Boleto ${bolPct.toFixed(1)}%`} />}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 12 }}>
+                  {([
+                    { label: 'Cartão', aprov: ccAprov,  pend: ccPend,  conv: ccConv,  pct: ccPct,  color: '#7c3aed', bg: 'rgba(124,58,237,0.12)', dot: '#a78bfa' },
+                    { label: 'PIX',    aprov: pixAprov, pend: pixPend, conv: pixConv, pct: pixPct, color: '#34d399', bg: 'rgba(52,211,153,0.10)', dot: '#34d399' },
+                    { label: 'Boleto', aprov: bolAprov, pend: bolPend, conv: bolConv, pct: bolPct, color: '#fbbf24', bg: 'rgba(251,191,36,0.10)', dot: '#fbbf24' },
+                  ]).map(pm => (
+                    <div key={pm.label} style={{ background: pm.bg, border: `1px solid ${pm.color}22`, borderRadius: 12, padding: '12px 14px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10 }}>
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: pm.dot, flexShrink: 0 }} />
+                        <span style={{ fontSize: 12, fontWeight: 700, color: '#e2e8f0' }}>{pm.label}</span>
+                        <span style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 700, color: pm.dot }}>{pm.pct.toFixed(1)}%</span>
+                      </div>
+                      <div style={{ height: 4, background: '#1e1d2e', borderRadius: 2, overflow: 'hidden', marginBottom: 10 }}>
+                        <div style={{ height: '100%', width: `${pm.pct}%`, background: pm.color, borderRadius: 2 }} />
+                      </div>
+                      {[
+                        { label: 'Aprovados',  val: pm.aprov, color: pm.dot },
+                        { label: 'Pendentes',  val: pm.pend,  color: '#64748b' },
+                        { label: 'Conversão',  val: `${pm.conv.toFixed(1)}%`, color: pm.conv >= 70 ? '#34d399' : pm.conv >= 40 ? '#fbbf24' : '#f87171' },
+                      ].map(r => (
+                        <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '3px 0' }}>
+                          <span style={{ color: '#94a3b8' }}>{r.label}</span>
+                          <span style={{ fontWeight: 600, color: r.color }}>{typeof r.val === 'number' ? num(r.val) : r.val}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 12, marginBottom: 14 }}>
