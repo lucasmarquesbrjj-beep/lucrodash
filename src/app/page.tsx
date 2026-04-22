@@ -59,7 +59,7 @@ button{cursor:pointer;font-family:inherit}
 .eye-btn{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:transparent;border:none;color:#64748b;font-size:16px}
 .login-error{font-size:12px;color:#f87171;text-align:center;margin-bottom:12px}
 .login-btn{width:100%;padding:12px;border-radius:10px;background:linear-gradient(135deg,#4338ca,#7c3aed);border:none;color:#fff;font-size:14px;font-weight:700;margin-bottom:8px}
-.demo-btn{width:100%;padding:10px;border-radius:10px;background:transparent;border:1px solid #2d2d3d;color:#64748b;font-size:13px}
+.demo-btn{width:100%;padding:10px;border-radius:10px;background:transparent;border:1px solid #3d3d50;color:#94a3b8;font-size:13px;margin-top:4px}
 .hd-sidebar{width:220px;background:#0f0e17;border-right:1px solid #1e1d2e;display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:50;transform:translateX(-100%);transition:transform 0.25s ease}
 .hd-sidebar.open{transform:translateX(0)}
 .logo-area{padding:18px 16px;border-bottom:1px solid #1e1d2e;display:flex;align-items:center;justify-content:space-between}
