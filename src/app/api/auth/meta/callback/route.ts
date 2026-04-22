@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const APP_ID = process.env.META_APP_ID!;
 const APP_SECRET = process.env.META_APP_SECRET!;
-const REDIRECT_URI = 'https://lucrodash.vercel.app/api/auth/meta/callback';
+const REDIRECT_URI = 'https://holydash.vercel.app/api/auth/meta/callback';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   const error = searchParams.get('error');
 
   if (error) {
-    return NextResponse.redirect('https://lucrodash.vercel.app?meta_error=true');
+    return NextResponse.redirect('https://holydash.vercel.app?meta_error=true');
   }
 
   if (!code) {
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
       body: JSON.stringify({ meta_access_token: finalToken }),
     });
 
-    return NextResponse.redirect('https://lucrodash.vercel.app?meta_connected=true');
+    return NextResponse.redirect('https://holydash.vercel.app?meta_connected=true');
 
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
   const user = data[0];
   const response = NextResponse.json({ success: true, nome: user.nome });
   
-  response.cookies.set('lucrodash_auth', btoa(`${email}:${senha}`), {
+  response.cookies.set('holydash_auth', btoa(`${email}:${senha}`), {
     httpOnly: true,
     secure: true,
     maxAge: 60 * 60 * 24 * 30,
