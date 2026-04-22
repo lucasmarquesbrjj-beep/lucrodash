@@ -441,6 +441,12 @@ function IntegracoesPage({ onToast }: { onToast: (m: string) => void }) {
   const [shopee, setShopee] = useState(false)
   const [google, setGoogle] = useState(false)
 
+  useEffect(() => {
+    fetch('/api/taxas')
+      .then(r => r.json())
+      .then(d => { if (d.meta_access_token) setMeta(true) })
+  }, [])
+
   const IntCard = ({ icon, iconBg, title, desc, connected, onToggle, connectLabel, connectBg }: any) => (
     <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: 18, marginBottom: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
