@@ -78,6 +78,7 @@ export async function GET(request: NextRequest) {
 
     const orders = allOrders;
     const pagos = orders.filter((o: any) => o.financial_status === 'paid');
+    const pagosValidos = pagos.filter((o: any) => parseFloat(o.total_price || '0') >= 1);
     const pendentes = orders.filter((o: any) => ['pending','partially_paid'].includes(o.financial_status));
 
     const faturamentoPago = pagos.reduce((s: number, o: any) => s + parseFloat(o.total_price || '0'), 0);
@@ -98,7 +99,7 @@ export async function GET(request: NextRequest) {
 
     const ticketMedio = pagos.length > 0 ? faturamentoPago / pagos.length : 0;
     const descontos = orders.reduce((s: number, o: any) => s + parseFloat(o.total_discounts || '0'), 0);
-    const frete = pagos.reduce((s: number, o: any) => s + parseFloat(o.total_shipping_price_set?.shop_money?.amount || '0'), 0);
+    const frete = pagosValidos.reduce((s: number, o: any) => s + parseFloat(o.total_shipping_price_set?.shop_money?.amount || '0'), 0);
 
     const hourly = Array(24).fill(0);
     pagos.forEach((o: any) => {
@@ -122,7 +123,7 @@ export async function GET(request: NextRequest) {
       faturamentoPago,
       faturamentoBruto,
       pedidosGerados: orders.length,
-      pedidosPagos: pagos.length,
+      pedidosPagos: pagosValidos.length,
       pedidosPendentes: pendentes.length,
       cartaoAprovado, cartaoPendente,
       boletoPago, boletoPendente,
