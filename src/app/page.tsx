@@ -104,7 +104,7 @@ const CHANNELS = [
   { id: 'geral', icon: '📊', label: 'Geral' },
 ]
 
-function DashPage({ taxas }: { taxas: any }) {
+function DashPage({ taxas, onRefreshTaxas }: { taxas: any; onRefreshTaxas: () => void }) {
   const [filter, setFilter] = useState('today')
   const [channel, setChannel] = useState('ecom')
   const [showCustom, setShowCustom] = useState(false)
@@ -123,6 +123,10 @@ function DashPage({ taxas }: { taxas: any }) {
   }
 
   useEffect(() => { fetchData(filter) }, [filter])
+
+  useEffect(() => {
+    fetch('/api/meta/spend').then(() => onRefreshTaxas())
+  }, [])
 
   const d = data || {}
   const MULT: Record<string, number> = { ecom: 1, ml: 0.35, shopee: 0.18, geral: 1.53 }
@@ -551,8 +555,10 @@ export default function App() {
     setCheckingAuth(false)
   }, [])
 
+  const refreshTaxas = () => fetch('/api/taxas').then(r => r.json()).then(setTaxas)
+
   useEffect(() => {
-    if (user) fetch('/api/taxas').then(r => r.json()).then(setTaxas)
+    if (user) refreshTaxas()
   }, [user])
 
   if (checkingAuth) return <div style={{ minHeight: '100vh', background: '#0a0918' }} />
@@ -596,7 +602,7 @@ export default function App() {
           <span style={{ fontSize: 13, color: '#64748b', marginLeft: 'auto' }}>{PAGE_LABELS[page]}</span>
         </header>
         <main style={{ flex: 1, overflowY: 'auto', padding: '18px 16px 60px' }}>
-          {page === 'dashboard' && <DashPage taxas={taxas} />}
+          {page === 'dashboard' && <DashPage taxas={taxas} onRefreshTaxas={refreshTaxas} />}
           {page === 'produtos' && <ProdutosPage />}
           {page === 'taxas' && <TaxasPage taxas={taxas} onSave={setTaxas} onToast={setToast} />}
           {page === 'lancamentos' && <LancamentosPage onToast={setToast} />}
