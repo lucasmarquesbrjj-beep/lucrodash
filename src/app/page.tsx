@@ -9,10 +9,24 @@ const fmt = (v: number, t = 'brl') => {
   return String(v)
 }
 
-const PAGES = ['dashboard','produtos','taxas','meta-ads','lancamentos'] as const
+const PAGES = ['dashboard','produtos','taxas','lancamentos','integracoes','configuracoes'] as const
 type Page = typeof PAGES[number]
-const LABELS: Record<Page,string> = { dashboard:'Dashboard', produtos:'Produtos', taxas:'Taxas & Tarifas', 'meta-ads':'Meta Ads', lancamentos:'Lançamentos' }
-const ICONS: Record<Page,string> = { dashboard:'▣', produtos:'◈', taxas:'%', 'meta-ads':'⬡', lancamentos:'⊕' }
+const LABELS: Record<Page,string> = {
+  dashboard: 'Dashboard',
+  produtos: 'Produtos',
+  taxas: 'Taxas & Tarifas',
+  lancamentos: 'Lançamentos',
+  integracoes: 'Integrações',
+  configuracoes: 'Configurações',
+}
+const ICONS: Record<Page,string> = {
+  dashboard: '▣',
+  produtos: '◈',
+  taxas: '%',
+  lancamentos: '⊕',
+  integracoes: '⬡',
+  configuracoes: '⚙',
+}
 
 const PRODS = [
   { id: 1, name: 'Creme Anti-Age Premium', sku: 'CAP-001', cost: 28.5, price: 197, sales: 142, revenue: 27974, profit: 9840, cpa: 18.5, img: '🧴' },
@@ -45,8 +59,6 @@ function MiniRows({ title, rows, color='#6366f1' }: { title:string, rows:{label:
 }
 
 function LucroComposicao({ fat, taxas, pedidos }: { fat:number, taxas:any, pedidos:number }) {
-
-  
   const tCheckout = fat * (taxas.checkout_pct || 0) / 100
   const tGateway = fat * (taxas.gateway_pct || 0) / 100
   const tImposto = fat * (taxas.imposto_pct || 0) / 100
@@ -72,7 +84,7 @@ function LucroComposicao({ fat, taxas, pedidos }: { fat:number, taxas:any, pedid
     <div style={{ background:'#141320', border:'1px solid #1e1d2e', borderRadius:14, padding:'16px 18px' }}>
       <div style={{ fontSize:11, fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:12 }}>Composição do lucro</div>
       {row('Faturamento pago', fat, true)}
-      {row(`Taxa checkout (${taxas.checkout_pct||0}% + fixo diário)`, tCheckout)}
+      {row(`Taxa checkout (${taxas.checkout_pct||0}%)`, tCheckout)}
       {row(`Taxa gateway (${taxas.gateway_pct||0}%)`, tGateway)}
       {row(`Impostos (${taxas.imposto_pct||0}%)`, tImposto)}
       {row(`Custo produto (${pedidos}x R$${taxas.custo_produto||0})`, tCustoProd)}
@@ -254,16 +266,13 @@ function ProdutosPage() {
   )
 }
 
-
 function LoginPage({ onLogin }: { onLogin: (nome: string) => void }) {
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [erro, setErro] = useState('')
   const [loading, setLoading] = useState(false)
+  const [mostrarSenha, setMostrarSenha] = useState(false)
 
-const [mostrarSenha, setMostrarSenha] = useState(false)
-
-  
   const handleLogin = async () => {
     setLoading(true)
     setErro('')
@@ -286,46 +295,30 @@ const [mostrarSenha, setMostrarSenha] = useState(false)
     <div style={{ minHeight:'100vh', background:'#0a0918', display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
       <div style={{ width:'100%', maxWidth:380 }}>
         <div style={{ textAlign:'center', marginBottom:32 }}>
-   <img src="/logo.png" alt="LucroDash" style={{ width:220, margin:'0 auto 16px', display:'block' }} />
+          <img src="/logo.png" alt="LucroDash" style={{ width:220, margin:'0 auto 16px', display:'block' }}/>
         </div>
         <div style={{ background:'#141320', border:'1px solid #1e1d2e', borderRadius:16, padding:28 }}>
           <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
             <div>
               <label style={{ fontSize:12, color:'#64748b', display:'block', marginBottom:6 }}>Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="seu@email.com"
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="seu@email.com"
                 style={{ width:'100%', padding:'10px 14px', background:'#0f0e17', border:'1px solid #2d2d3d', borderRadius:10, color:'#f1f5f9', fontSize:14, boxSizing:'border-box' }}
-                onKeyDown={e => e.key === 'Enter' && handleLogin()}
-              />
+                onKeyDown={e => e.key==='Enter' && handleLogin()}/>
             </div>
             <div>
-  <label style={{ fontSize:12, color:'#64748b', display:'block', marginBottom:6 }}>Senha</label>
-  <div style={{ position:'relative' }}>
-    <input
-      type={mostrarSenha ? 'text' : 'password'}
-      value={senha}
-      onChange={e => setSenha(e.target.value)}
-      placeholder="••••••••"
-      style={{ width:'100%', padding:'10px 14px', paddingRight:44, background:'#0f0e17', border:'1px solid #2d2d3d', borderRadius:10, color:'#f1f5f9', fontSize:14, boxSizing:'border-box' }}
-      onKeyDown={e => e.key === 'Enter' && handleLogin()}
-    />
-    <button
-      onClick={() => setMostrarSenha(!mostrarSenha)}
-      style={{ position:'absolute', right:12, top:'50%', transform:'translateY(-50%)', background:'transparent', border:'none', color:'#64748b', cursor:'pointer', fontSize:16, padding:0 }}
-    >
-      {mostrarSenha ? '🙈' : '👁️'}
-    </button>
-  </div>
-</div>
+              <label style={{ fontSize:12, color:'#64748b', display:'block', marginBottom:6 }}>Senha</label>
+              <div style={{ position:'relative' }}>
+                <input type={mostrarSenha?'text':'password'} value={senha} onChange={e => setSenha(e.target.value)} placeholder="••••••••"
+                  style={{ width:'100%', padding:'10px 14px', paddingRight:44, background:'#0f0e17', border:'1px solid #2d2d3d', borderRadius:10, color:'#f1f5f9', fontSize:14, boxSizing:'border-box' }}
+                  onKeyDown={e => e.key==='Enter' && handleLogin()}/>
+                <button onClick={() => setMostrarSenha(!mostrarSenha)} style={{ position:'absolute', right:12, top:'50%', transform:'translateY(-50%)', background:'transparent', border:'none', color:'#64748b', cursor:'pointer', fontSize:16, padding:0 }}>
+                  {mostrarSenha ? '🙈' : '👁️'}
+                </button>
+              </div>
+            </div>
             {erro && <div style={{ fontSize:12, color:'#f87171', textAlign:'center' }}>{erro}</div>}
-            <button
-              onClick={handleLogin}
-              disabled={loading}
-              style={{ padding:'12px', borderRadius:10, background:'linear-gradient(135deg,#4338ca,#7c3aed)', border:'none', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', opacity: loading ? 0.7 : 1 }}
-            >
+            <button onClick={handleLogin} disabled={loading}
+              style={{ padding:'12px', borderRadius:10, background:'linear-gradient(135deg,#4338ca,#7c3aed)', border:'none', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', opacity:loading?0.7:1 }}>
               {loading ? '⏳ Entrando...' : 'Entrar'}
             </button>
           </div>
@@ -336,10 +329,10 @@ const [mostrarSenha, setMostrarSenha] = useState(false)
 }
 
 function DashPage({ taxas }: { taxas: any }) {
- const [filter, setFilter] = useState('today')
-const [customStart, setCustomStart] = useState('')
-const [customEnd, setCustomEnd] = useState('')
-const [showCustom, setShowCustom] = useState(false)
+  const [filter, setFilter] = useState('today')
+  const [customStart, setCustomStart] = useState('')
+  const [customEnd, setCustomEnd] = useState('')
+  const [showCustom, setShowCustom] = useState(false)
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -357,10 +350,9 @@ const [showCustom, setShowCustom] = useState(false)
   const hourly = d.hourly || Array(24).fill(0)
   const states = d.states || []
 
-
   const fat = d.faturamentoPago || 0
   const pedidos = d.pedidosPagos || 0
- const tCheckout = fat * (taxas.checkout_pct || 0) / 100
+  const tCheckout = fat * (taxas.checkout_pct || 0) / 100
   const tGateway = fat * (taxas.gateway_pct || 0) / 100
   const tImposto = fat * (taxas.imposto_pct || 0) / 100
   const tCustoProd = pedidos * (taxas.custo_produto || 0)
@@ -380,18 +372,21 @@ const [showCustom, setShowCustom] = useState(false)
           <p style={{ fontSize:12, color:'#64748b', marginTop:2 }}>Pelos Pets · Visão geral da operação</p>
         </div>
         <div style={{ display:'flex', gap:5, flexWrap:'wrap' }}>
-         {[['today','Hoje'],['yesterday','Ontem'],['7d','7 dias'],['30d','30 dias'],['month','Este mês']].map(([v,l]) => (
-  <button key={v} onClick={() => { setFilter(v); setShowCustom(false) }} style={{ padding:'5px 12px', borderRadius:20, fontSize:12, border:filter===v&&!showCustom?'1.5px solid #6366f1':'1px solid #2d2d3d', background:filter===v&&!showCustom?'rgba(99,102,241,0.15)':'transparent', color:filter===v&&!showCustom?'#a5b4fc':'#64748b' }}>{l}</button>
-))}
-<button onClick={() => setShowCustom(!showCustom)} style={{ padding:'5px 12px', borderRadius:20, fontSize:12, border:showCustom?'1.5px solid #6366f1':'1px solid #2d2d3d', background:showCustom?'rgba(99,102,241,0.15)':'transparent', color:showCustom?'#a5b4fc':'#64748b' }}>📅 Período</button>
-{showCustom && (
-  <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap', marginTop:6 }}>
-    <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} style={{ padding:'4px 8px', fontSize:12, borderRadius:8 }}/>
-    <span style={{ color:'#64748b', fontSize:12 }}>até</span>
-    <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} style={{ padding:'4px 8px', fontSize:12, borderRadius:8 }}/>
-    <button onClick={() => { if(customStart && customEnd) setFilter(`custom:${customStart}:${customEnd}`) }} style={{ padding:'5px 12px', borderRadius:20, fontSize:12, background:'linear-gradient(135deg,#4338ca,#7c3aed)', border:'none', color:'#fff' }}>Buscar</button>
-  </div>
-)}
+          {[['today','Hoje'],['yesterday','Ontem'],['7d','7 dias'],['30d','30 dias'],['month','Este mês']].map(([v,l]) => (
+            <button key={v} onClick={() => { setFilter(v); setShowCustom(false) }}
+              style={{ padding:'5px 12px', borderRadius:20, fontSize:12, border:filter===v&&!showCustom?'1.5px solid #6366f1':'1px solid #2d2d3d', background:filter===v&&!showCustom?'rgba(99,102,241,0.15)':'transparent', color:filter===v&&!showCustom?'#a5b4fc':'#64748b' }}>{l}</button>
+          ))}
+          <button onClick={() => setShowCustom(!showCustom)}
+            style={{ padding:'5px 12px', borderRadius:20, fontSize:12, border:showCustom?'1.5px solid #6366f1':'1px solid #2d2d3d', background:showCustom?'rgba(99,102,241,0.15)':'transparent', color:showCustom?'#a5b4fc':'#64748b' }}>📅 Período</button>
+          {showCustom && (
+            <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap', marginTop:6 }}>
+              <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} style={{ padding:'4px 8px', fontSize:12, borderRadius:8 }}/>
+              <span style={{ color:'#64748b', fontSize:12 }}>até</span>
+              <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} style={{ padding:'4px 8px', fontSize:12, borderRadius:8 }}/>
+              <button onClick={() => { if(customStart && customEnd) setFilter(`custom:${customStart}:${customEnd}`) }}
+                style={{ padding:'5px 12px', borderRadius:20, fontSize:12, background:'linear-gradient(135deg,#4338ca,#7c3aed)', border:'none', color:'#fff' }}>Buscar</button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -402,14 +397,13 @@ const [showCustom, setShowCustom] = useState(false)
         <>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(155px,1fr))', gap:10, marginBottom:12 }}>
             {card('Faturamento pago', fmt(fat), '#6366f1', `Bruto: ${fmt(d.faturamentoBruto||0)}`)}
-            {card('Lucro líquido', fmt(lucroLiquido), lucroLiquido > 0 ? '#34d399' : '#f87171', `Margem: ${margem.toFixed(1)}%`)}
+            {card('Lucro líquido', fmt(lucroLiquido), lucroLiquido>0?'#34d399':'#f87171', `Margem: ${margem.toFixed(1)}%`)}
             {card('Pedidos pagos', fmt(pedidos,'num'), '#a78bfa', `de ${fmt(d.pedidosGerados||0,'num')} gerados`)}
             {card('Ticket médio', fmt(d.ticketMedio||0), '#fbbf24')}
             {card('Total custos', fmt(totalCustos), '#f87171')}
           </div>
-
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))', gap:10, marginBottom:12 }}>
-            <LucroComposicao fat={fat} taxas={taxas} pedidos={pedidos} />
+            <LucroComposicao fat={fat} taxas={taxas} pedidos={pedidos}/>
             <MiniRows title="Pedidos" color="#a5b4fc" rows={[
               { label:'Gerados', value:fmt(d.pedidosGerados||0,'num') },
               { label:'Pendentes', value:fmt(d.pedidosPendentes||0,'num') },
@@ -429,16 +423,14 @@ const [showCustom, setShowCustom] = useState(false)
               { label:'PIX pendente', value:fmt(d.pixPendente||0,'num') },
             ]}/>
           </div>
-
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))', gap:10, marginBottom:12 }}>
             <HourBar hourly={hourly}/>
             <MetaMes atual={fat} meta={250000}/>
           </div>
-
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))', gap:10 }}>
             <div style={{ background:'#141320', border:'1px solid #1e1d2e', borderRadius:14, padding:18 }}>
               <div style={{ fontSize:11, fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:12 }}>Vendas por estado</div>
-              {states.length === 0 && <div style={{ fontSize:12, color:'#475569' }}>Sem dados</div>}
+              {states.length===0 && <div style={{ fontSize:12, color:'#475569' }}>Sem dados</div>}
               {states.map((s: any, i: number) => (
                 <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'7px 0', borderBottom:i<states.length-1?'1px solid #1a1929':'none' }}>
                   <div style={{ display:'flex', alignItems:'center', gap:8 }}>
@@ -477,7 +469,7 @@ function TaxasPage({ taxas, onSave }: { taxas: any, onSave: (t: any) => void }) 
 
   const handleSave = async () => {
     setSaving(true)
-    await fetch('/api/taxas', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(t) })
+    await fetch('/api/taxas', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(t) })
     onSave(t)
     setSaving(false)
     setSaved(true)
@@ -531,47 +523,10 @@ function TaxasPage({ taxas, onSave }: { taxas: any, onSave: (t: any) => void }) 
         </div>
       </div>
       <div style={{ marginTop:14, display:'flex', justifyContent:'flex-end' }}>
-        <button onClick={handleSave} disabled={saving} style={{ padding:'9px 24px', borderRadius:10, fontSize:13, fontWeight:700, border:'none', background:saved?'rgba(52,211,153,0.2)':'linear-gradient(135deg,#4338ca,#7c3aed)', color:saved?'#34d399':'#fff' }}>
+        <button onClick={handleSave} disabled={saving}
+          style={{ padding:'9px 24px', borderRadius:10, fontSize:13, fontWeight:700, border:'none', background:saved?'rgba(52,211,153,0.2)':'linear-gradient(135deg,#4338ca,#7c3aed)', color:saved?'#34d399':'#fff' }}>
           {saving ? '⏳ Salvando...' : saved ? '✓ Salvo!' : 'Salvar Configurações'}
         </button>
-      </div>
-    </div>
-  )
-}
-
-function MetaAdsPage({ taxas, onSave }: { taxas: any, onSave: (t: any) => void }) {
-  const [valor, setValor] = useState(String(taxas.meta_ads_hoje || ''))
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0])
-  const [saved, setSaved] = useState(false)
-
-  const handleSave = async () => {
-    const updated = { ...taxas, meta_ads_hoje: parseFloat(valor) || 0 }
-    await fetch('/api/taxas', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(updated) })
-    onSave(updated)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
-  }
-
-  return (
-    <div>
-      <h1 style={{ fontSize:20, fontWeight:700, color:'#f1f5f9', marginBottom:4 }}>Meta Ads</h1>
-      <p style={{ fontSize:12, color:'#64748b', marginBottom:16 }}>Lançamento do gasto diário</p>
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))', gap:14 }}>
-        <div style={{ background:'#141320', border:'1px solid #1e1d2e', borderRadius:14, padding:22 }}>
-          <div style={{ fontSize:12, fontWeight:700, color:'#a5b4fc', marginBottom:14 }}>Gasto de hoje</div>
-          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-            <div><label style={{ fontSize:11, color:'#64748b', display:'block', marginBottom:5 }}>Data</label><input type="date" value={date} onChange={e => setDate(e.target.value)}/></div>
-            <div><label style={{ fontSize:11, color:'#64748b', display:'block', marginBottom:5 }}>Gasto Meta Ads (R$)</label><input type="number" placeholder="0,00" value={valor} onChange={e => setValor(e.target.value)}/></div>
-            <button onClick={handleSave} style={{ padding:'9px', borderRadius:8, background: saved?'rgba(52,211,153,0.2)':'linear-gradient(135deg,#4338ca,#7c3aed)', border:'none', color: saved?'#34d399':'#fff', fontSize:13, fontWeight:700 }}>
-              {saved ? '✓ Salvo!' : 'Salvar'}
-            </button>
-          </div>
-        </div>
-        <div style={{ background:'rgba(99,102,241,0.08)', border:'1px solid rgba(99,102,241,0.2)', borderRadius:12, padding:'14px 18px' }}>
-          <div style={{ fontSize:12, fontWeight:600, color:'#a5b4fc', marginBottom:4 }}>⚡ Integração automática em breve</div>
-          <p style={{ fontSize:12, color:'#64748b', lineHeight:1.6 }}>Quando sua conta Meta Developer for aprovada, os gastos serão puxados automaticamente.</p>
-          <button onClick={() => window.location.href = '/api/auth/meta'} style={{ marginTop:10, padding:'8px 16px', borderRadius:8, background:'#1877f2', border:'none', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer' }}>Conectar com Facebook</button>
-        </div>
       </div>
     </div>
   )
@@ -637,6 +592,153 @@ function LancamentosPage() {
   )
 }
 
+const INTEGRACOES = [
+  {
+    id: 'shopify',
+    name: 'Shopify',
+    desc: 'Pedidos, faturamento e estoque',
+    icon: '🛍️',
+    color: '#96bf48',
+    connected: true,
+    info: 'pelos-pets-9091.myshopify.com',
+  },
+  {
+    id: 'meta',
+    name: 'Meta Ads',
+    desc: 'Facebook & Instagram Ads',
+    icon: '📘',
+    color: '#1877f2',
+    connected: false,
+    action: () => { window.location.href = '/api/auth/meta' },
+  },
+  {
+    id: 'mercadolivre',
+    name: 'Mercado Livre',
+    desc: 'Vendas e métricas do ML',
+    icon: '🛒',
+    color: '#ffe600',
+    connected: false,
+  },
+  {
+    id: 'shopee',
+    name: 'Shopee',
+    desc: 'Vendas e métricas da Shopee',
+    icon: '🧡',
+    color: '#f53d2d',
+    connected: false,
+  },
+  {
+    id: 'googleads',
+    name: 'Google Ads',
+    desc: 'Campanhas e gastos com anúncios',
+    icon: '🔍',
+    color: '#4285f4',
+    connected: false,
+  },
+]
+
+function IntegracoesPage() {
+  return (
+    <div>
+      <h1 style={{ fontSize:20, fontWeight:700, color:'#f1f5f9', marginBottom:4 }}>Integrações</h1>
+      <p style={{ fontSize:12, color:'#64748b', marginBottom:20 }}>Conecte suas plataformas para centralizar dados</p>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))', gap:14 }}>
+        {INTEGRACOES.map(integ => (
+          <div key={integ.id} style={{ background:'#141320', border:`1px solid ${integ.connected ? integ.color+'44' : '#1e1d2e'}`, borderRadius:14, padding:20, position:'relative', overflow:'hidden' }}>
+            <div style={{ position:'absolute', top:0, left:0, right:0, height:2, background:integ.connected ? `linear-gradient(90deg,${integ.color},transparent)` : 'transparent' }}/>
+            <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:14 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                <div style={{ width:40, height:40, borderRadius:10, background:'#0f0e17', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>{integ.icon}</div>
+                <div>
+                  <div style={{ fontSize:14, fontWeight:700, color:'#f1f5f9' }}>{integ.name}</div>
+                  <div style={{ fontSize:11, color:'#64748b', marginTop:2 }}>{integ.desc}</div>
+                </div>
+              </div>
+              <span style={{ fontSize:10, fontWeight:600, padding:'3px 8px', borderRadius:20, background:integ.connected?'rgba(52,211,153,0.15)':'rgba(100,116,139,0.15)', color:integ.connected?'#34d399':'#64748b' }}>
+                {integ.connected ? '● Conectado' : '○ Desconectado'}
+              </span>
+            </div>
+            {integ.connected ? (
+              <div style={{ fontSize:11, color:'#64748b', background:'#0f0e17', borderRadius:8, padding:'8px 12px' }}>{integ.info}</div>
+            ) : (
+              <button
+                onClick={integ.action || undefined}
+                disabled={!integ.action}
+                style={{ width:'100%', padding:'9px', borderRadius:8, background:integ.action?`linear-gradient(135deg,${integ.color}cc,${integ.color}88)`:'rgba(100,116,139,0.1)', border:integ.action?'none':'1px solid #2d2d3d', color:integ.action?'#fff':'#475569', fontSize:13, fontWeight:600, cursor:integ.action?'pointer':'not-allowed' }}>
+                {integ.action ? `Conectar ${integ.name}` : 'Em breve'}
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ConfiguracoesPage({ user }: { user: string }) {
+  const [meta, setMeta] = useState('250000')
+  const [saved, setSaved] = useState(false)
+
+  const handleSave = () => {
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  return (
+    <div>
+      <h1 style={{ fontSize:20, fontWeight:700, color:'#f1f5f9', marginBottom:4 }}>Configurações</h1>
+      <p style={{ fontSize:12, color:'#64748b', marginBottom:20 }}>Preferências da conta</p>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))', gap:14 }}>
+        <div style={{ background:'#141320', border:'1px solid #1e1d2e', borderRadius:14, padding:20 }}>
+          <div style={{ fontSize:12, fontWeight:700, color:'#a5b4fc', marginBottom:16, paddingBottom:10, borderBottom:'1px solid #1e1d2e' }}>Conta</div>
+          <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+            <div>
+              <label style={{ fontSize:11, color:'#64748b', display:'block', marginBottom:6 }}>Nome</label>
+              <input defaultValue={user} style={{ width:'100%', boxSizing:'border-box' }}/>
+            </div>
+            <div>
+              <label style={{ fontSize:11, color:'#64748b', display:'block', marginBottom:6 }}>Loja</label>
+              <input defaultValue="Pelos Pets" style={{ width:'100%', boxSizing:'border-box' }}/>
+            </div>
+          </div>
+        </div>
+        <div style={{ background:'#141320', border:'1px solid #1e1d2e', borderRadius:14, padding:20 }}>
+          <div style={{ fontSize:12, fontWeight:700, color:'#fbbf24', marginBottom:16, paddingBottom:10, borderBottom:'1px solid #1e1d2e' }}>Metas</div>
+          <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+            <div>
+              <label style={{ fontSize:11, color:'#64748b', display:'block', marginBottom:6 }}>Meta mensal de faturamento (R$)</label>
+              <input type="number" value={meta} onChange={e => setMeta(e.target.value)} style={{ width:'100%', boxSizing:'border-box' }}/>
+            </div>
+          </div>
+        </div>
+        <div style={{ background:'#141320', border:'1px solid #1e1d2e', borderRadius:14, padding:20 }}>
+          <div style={{ fontSize:12, fontWeight:700, color:'#94a3b8', marginBottom:16, paddingBottom:10, borderBottom:'1px solid #1e1d2e' }}>Sistema</div>
+          <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <span style={{ fontSize:12, color:'#94a3b8' }}>Fuso horário</span>
+              <span style={{ fontSize:12, fontWeight:600, color:'#e2e8f0' }}>América/São Paulo</span>
+            </div>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <span style={{ fontSize:12, color:'#94a3b8' }}>Moeda</span>
+              <span style={{ fontSize:12, fontWeight:600, color:'#e2e8f0' }}>BRL (R$)</span>
+            </div>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <span style={{ fontSize:12, color:'#94a3b8' }}>Versão</span>
+              <span style={{ fontSize:12, fontWeight:600, color:'#6366f1' }}>LucroDash v1.0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style={{ marginTop:14, display:'flex', justifyContent:'flex-end' }}>
+        <button onClick={handleSave}
+          style={{ padding:'9px 24px', borderRadius:10, fontSize:13, fontWeight:700, border:'none', background:saved?'rgba(52,211,153,0.2)':'linear-gradient(135deg,#4338ca,#7c3aed)', color:saved?'#34d399':'#fff' }}>
+          {saved ? '✓ Salvo!' : 'Salvar'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
   const [page, setPage] = useState<Page>('dashboard')
   const [menuOpen, setMenuOpen] = useState(false)
@@ -677,7 +779,8 @@ export default function App() {
         </div>
         <nav style={{ flex:1, padding:'10px 0' }}>
           {PAGES.map(p => (
-            <button key={p} onClick={() => { setPage(p); setMenuOpen(false) }} style={{ display:'flex', alignItems:'center', gap:10, width:'100%', padding:'9px 16px', background:page===p?'rgba(99,102,241,0.15)':'transparent', border:'none', borderLeft:page===p?'3px solid #6366f1':'3px solid transparent', color:page===p?'#a5b4fc':'#64748b', fontSize:13, fontWeight:page===p?600:400 }}>
+            <button key={p} onClick={() => { setPage(p); setMenuOpen(false) }}
+              style={{ display:'flex', alignItems:'center', gap:10, width:'100%', padding:'9px 16px', background:page===p?'rgba(99,102,241,0.15)':'transparent', border:'none', borderLeft:page===p?'3px solid #6366f1':'3px solid transparent', color:page===p?'#a5b4fc':'#64748b', fontSize:13, fontWeight:page===p?600:400, cursor:'pointer' }}>
               <span style={{ fontSize:14, minWidth:16 }}>{ICONS[p]}</span>
               {LABELS[p]}
             </button>
@@ -686,7 +789,10 @@ export default function App() {
         <div style={{ padding:'14px 16px', borderTop:'1px solid #1e1d2e' }}>
           <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
             <div style={{ width:26, height:26, borderRadius:'50%', background:'linear-gradient(135deg,#4338ca,#7c3aed)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, color:'#fff', fontWeight:700 }}>{user[0].toUpperCase()}</div>
-            <div><div style={{ color:'#e2e8f0', fontSize:12, fontWeight:600 }}>{user}</div><div style={{ color:'#64748b', fontSize:11 }}>Pelos Pets</div></div>
+            <div>
+              <div style={{ color:'#e2e8f0', fontSize:12, fontWeight:600 }}>{user}</div>
+              <div style={{ color:'#64748b', fontSize:11 }}>Pelos Pets</div>
+            </div>
           </div>
           <button onClick={handleLogout} style={{ width:'100%', padding:'6px', borderRadius:8, background:'transparent', border:'1px solid #2d2d3d', color:'#f87171', fontSize:11, cursor:'pointer' }}>Sair</button>
         </div>
@@ -704,8 +810,9 @@ export default function App() {
           {page==='dashboard' && <DashPage taxas={taxas}/>}
           {page==='produtos' && <ProdutosPage/>}
           {page==='taxas' && <TaxasPage taxas={taxas} onSave={setTaxas}/>}
-          {page==='meta-ads' && <MetaAdsPage taxas={taxas} onSave={setTaxas}/>}
           {page==='lancamentos' && <LancamentosPage/>}
+          {page==='integracoes' && <IntegracoesPage/>}
+          {page==='configuracoes' && <ConfiguracoesPage user={user}/>}
         </main>
       </div>
     </div>
