@@ -727,6 +727,9 @@ function ConfiguracoesPage({ taxas, onSave, onToast }: { taxas: any; onSave: (t:
 const PROD_FILTERS = [['today','Hoje'],['yesterday','Ontem'],['7d','7 dias'],['month','Este mês'],['30d','30 dias'],['year','Este ano'],['lastyear','Ano passado']]
 
 function ProdutosPage() {
+  const [activeTab, setActiveTab] = useState<'vendidos' | 'catalogo'>('vendidos')
+
+  // Mais Vendidos
   const [products, setProducts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -735,6 +738,16 @@ function ProdutosPage() {
   const [showCustom, setShowCustom] = useState(false)
   const [customStart, setCustomStart] = useState('')
   const [customEnd, setCustomEnd] = useState('')
+
+  // Catálogo
+  const [catalog, setCatalog] = useState<any[]>([])
+  const [catalogLoading, setCatalogLoading] = useState(false)
+  const [catalogError, setCatalogError] = useState<string | null>(null)
+  const [totalProducts, setTotalProducts] = useState(0)
+  const [totalVariants, setTotalVariants] = useState(0)
+  const [catalogLoaded, setCatalogLoaded] = useState(false)
+  const [expanded, setExpanded] = useState<Set<number>>(new Set())
+  const [catalogSearch, setCatalogSearch] = useState('')
 
   useEffect(() => {
     setLoading(true); setError(null); setProducts([]); setOrderCount(0)
@@ -751,6 +764,37 @@ function ProdutosPage() {
     return () => { cancelled = true }
   }, [filter])
 
+  useEffect(() => {
+    if (activeTab !== 'catalogo' || catalogLoaded) return
+    setCatalogLoading(true); setCatalogError(null)
+    fetch('/api/shopify/catalog')
+      .then(r => r.json())
+      .then(d => {
+        if (d.error) { setCatalogError(d.error); return }
+        setCatalog(d.catalog || [])
+        setTotalProducts(d.totalProducts || 0)
+        setTotalVariants(d.totalVariants || 0)
+        setCatalogLoaded(true)
+      })
+      .catch(e => setCatalogError(e.message))
+      .finally(() => setCatalogLoading(false))
+  }, [activeTab, catalogLoaded])
+
+  const toggleExpand = (id: number) => {
+    setExpanded(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) { next.delete(id) } else { next.add(id) }
+      return next
+    })
+  }
+
+  const filteredCatalog = catalogSearch.trim()
+    ? catalog.filter(p =>
+        p.title.toLowerCase().includes(catalogSearch.toLowerCase()) ||
+        p.variants.some((v: any) => v.sku?.toLowerCase().includes(catalogSearch.toLowerCase()) || v.title?.toLowerCase().includes(catalogSearch.toLowerCase()))
+      )
+    : catalog
+
   const isLarge = filter === 'year' || filter === 'lastyear'
   const loadingMsg = filter === '30d' ? 'Carregando 30 dias de pedidos...'
     : isLarge ? 'Carregando dados do ano inteiro, aguarde...'
@@ -759,98 +803,221 @@ function ProdutosPage() {
   return (
     <div>
       <style>{`@keyframes ld-slide2{0%{left:-50%;width:45%}60%{width:55%}100%{left:110%;width:45%}}`}</style>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
-        <div>
-          <h1 style={{ fontSize: 20, fontWeight: 700, color: '#f1f5f9' }}>Produtos</h1>
-          <p style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>Ranking de variantes por receita — pedidos pagos</p>
-        </div>
-        <div>
-          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 6 }}>
-            {PROD_FILTERS.map(([v, l]) => (
-              <button key={v} onClick={() => { setFilter(v); setShowCustom(false) }}
-                style={{ padding: '5px 12px', borderRadius: 20, fontSize: 12, border: filter === v && !showCustom ? '1.5px solid #6366f1' : '1px solid #2d2d3d', background: filter === v && !showCustom ? 'rgba(99,102,241,0.15)' : 'transparent', color: filter === v && !showCustom ? '#a5b4fc' : '#64748b', cursor: 'pointer' }}>{l}</button>
-            ))}
-            <button onClick={() => setShowCustom(!showCustom)}
-              style={{ padding: '5px 12px', borderRadius: 20, fontSize: 12, border: showCustom ? '1.5px solid #6366f1' : '1px solid #2d2d3d', background: showCustom ? 'rgba(99,102,241,0.15)' : 'transparent', color: showCustom ? '#a5b4fc' : '#64748b', cursor: 'pointer' }}>📅 Período</button>
-          </div>
-          {showCustom && (
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-              <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} style={{ padding: '4px 8px', fontSize: 12, borderRadius: 8, background: '#0f0e17', border: '1px solid #2d2d3d', color: '#e2e8f0' }} />
-              <span style={{ color: '#64748b', fontSize: 12 }}>até</span>
-              <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} style={{ padding: '4px 8px', fontSize: 12, borderRadius: 8, background: '#0f0e17', border: '1px solid #2d2d3d', color: '#e2e8f0' }} />
-              <button onClick={() => { if (customStart && customEnd) { setFilter(`custom:${customStart}:${customEnd}`); setShowCustom(false) } }}
-                style={{ padding: '5px 14px', borderRadius: 20, fontSize: 12, background: 'linear-gradient(135deg,#4338ca,#7c3aed)', border: 'none', color: '#fff', cursor: 'pointer' }}>Buscar</button>
-            </div>
-          )}
-        </div>
+
+      <div style={{ marginBottom: 18 }}>
+        <h1 style={{ fontSize: 20, fontWeight: 700, color: '#f1f5f9' }}>Produtos</h1>
+        <p style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>Ranking de vendas e catálogo da loja</p>
       </div>
 
-      {loading && (
-        <div style={{ padding: '48px 20px', textAlign: 'center' }}>
-          <div style={{ maxWidth: 360, margin: '0 auto' }}>
-            <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 14 }}>{loadingMsg}</div>
-            {!['today','yesterday','anteontem'].includes(filter) && (
-              <div style={{ height: 5, background: '#1e1d2e', borderRadius: 3, overflow: 'hidden', position: 'relative' }}>
-                <div style={{ position: 'absolute', top: 0, height: '100%', background: 'linear-gradient(90deg,#4338ca,#7c3aed)', borderRadius: 3, animation: 'ld-slide2 1.6s ease-in-out infinite' }} />
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid #1e1d2e', paddingBottom: 0 }}>
+        {([['vendidos', 'Mais Vendidos'], ['catalogo', 'Catálogo']] as const).map(([id, label]) => (
+          <button key={id} onClick={() => setActiveTab(id)}
+            style={{ padding: '8px 18px', fontSize: 13, fontWeight: 600, background: 'transparent', border: 'none', borderBottom: activeTab === id ? '2px solid #6366f1' : '2px solid transparent', color: activeTab === id ? '#a5b4fc' : '#475569', cursor: 'pointer', marginBottom: -1 }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Mais Vendidos ── */}
+      {activeTab === 'vendidos' && (
+        <>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14, flexWrap: 'wrap', gap: 6 }}>
+            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+              {PROD_FILTERS.map(([v, l]) => (
+                <button key={v} onClick={() => { setFilter(v); setShowCustom(false) }}
+                  style={{ padding: '5px 12px', borderRadius: 20, fontSize: 12, border: filter === v && !showCustom ? '1.5px solid #6366f1' : '1px solid #2d2d3d', background: filter === v && !showCustom ? 'rgba(99,102,241,0.15)' : 'transparent', color: filter === v && !showCustom ? '#a5b4fc' : '#64748b', cursor: 'pointer' }}>{l}</button>
+              ))}
+              <button onClick={() => setShowCustom(!showCustom)}
+                style={{ padding: '5px 12px', borderRadius: 20, fontSize: 12, border: showCustom ? '1.5px solid #6366f1' : '1px solid #2d2d3d', background: showCustom ? 'rgba(99,102,241,0.15)' : 'transparent', color: showCustom ? '#a5b4fc' : '#64748b', cursor: 'pointer' }}>📅 Período</button>
+            </div>
+            {showCustom && (
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} style={{ padding: '4px 8px', fontSize: 12, borderRadius: 8, background: '#0f0e17', border: '1px solid #2d2d3d', color: '#e2e8f0' }} />
+                <span style={{ color: '#64748b', fontSize: 12 }}>até</span>
+                <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} style={{ padding: '4px 8px', fontSize: 12, borderRadius: 8, background: '#0f0e17', border: '1px solid #2d2d3d', color: '#e2e8f0' }} />
+                <button onClick={() => { if (customStart && customEnd) { setFilter(`custom:${customStart}:${customEnd}`); setShowCustom(false) } }}
+                  style={{ padding: '5px 14px', borderRadius: 20, fontSize: 12, background: 'linear-gradient(135deg,#4338ca,#7c3aed)', border: 'none', color: '#fff', cursor: 'pointer' }}>Buscar</button>
               </div>
             )}
           </div>
-        </div>
-      )}
 
-      {!loading && error && (
-        <div style={{ padding: 24, background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, color: '#f87171', fontSize: 13 }}>
-          Erro ao buscar produtos: {error}
-        </div>
-      )}
-
-      {!loading && !error && (
-        <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, overflow: 'hidden' }}>
-          {products.length === 0 ? (
-            <div style={{ padding: 40, textAlign: 'center', fontSize: 13, color: '#475569' }}>Nenhum pedido pago encontrado no período.</div>
-          ) : (
-            <>
-              <div style={{ padding: '10px 16px', borderBottom: '1px solid #1e1d2e', fontSize: 11, color: '#475569' }}>
-                {orderCount} pedidos · {products.length} variantes
+          {loading && (
+            <div style={{ padding: '48px 20px', textAlign: 'center' }}>
+              <div style={{ maxWidth: 360, margin: '0 auto' }}>
+                <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 14 }}>{loadingMsg}</div>
+                {!['today','yesterday','anteontem'].includes(filter) && (
+                  <div style={{ height: 5, background: '#1e1d2e', borderRadius: 3, overflow: 'hidden', position: 'relative' }}>
+                    <div style={{ position: 'absolute', top: 0, height: '100%', background: 'linear-gradient(90deg,#4338ca,#7c3aed)', borderRadius: 3, animation: 'ld-slide2 1.6s ease-in-out infinite' }} />
+                  </div>
+                )}
               </div>
-              <div style={{ overflowX: 'auto' as any }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
-                  <thead>
-                    <tr style={{ background: '#0f0e17' }}>
-                      {['#','Produto','Variante','Qtd','Receita','Ticket Médio','% do total'].map(h => (
-                        <th key={h} style={{ fontSize: 11, color: '#475569', fontWeight: 600, textAlign: 'left', padding: '10px 14px', borderBottom: '1px solid #1e1d2e', whiteSpace: 'nowrap' as any }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {products.map((p, i) => (
-                      <tr key={i} style={{ borderBottom: '1px solid #1a1929' }}>
-                        <td style={{ padding: '11px 14px', fontSize: 12, fontWeight: 700, color: '#6366f1', minWidth: 28 }}>#{i + 1}</td>
-                        <td style={{ padding: '11px 14px', fontSize: 13, fontWeight: 600, color: '#e2e8f0', maxWidth: 220 }}>
-                          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as any }}>{p.product_title}</div>
-                        </td>
-                        <td style={{ padding: '11px 14px', fontSize: 12, color: '#94a3b8', maxWidth: 140 }}>
-                          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as any }}>{p.variant_title || '—'}</div>
-                        </td>
-                        <td style={{ padding: '11px 14px', fontSize: 13, fontWeight: 600, color: '#a5b4fc', whiteSpace: 'nowrap' as any }}>{num(p.qty)} un.</td>
-                        <td style={{ padding: '11px 14px', fontSize: 13, fontWeight: 700, color: '#34d399', whiteSpace: 'nowrap' as any }}>{brl(p.revenue)}</td>
-                        <td style={{ padding: '11px 14px', fontSize: 13, color: '#fbbf24', whiteSpace: 'nowrap' as any }}>{brl(p.ticket_medio)}</td>
-                        <td style={{ padding: '11px 14px', minWidth: 130 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <div style={{ flex: 1, height: 4, background: '#1e1d2e', borderRadius: 2, overflow: 'hidden' }}>
-                              <div style={{ height: '100%', width: `${Math.min(p.pct, 100)}%`, background: 'linear-gradient(90deg,#4338ca,#7c3aed)', borderRadius: 2 }} />
+            </div>
+          )}
+          {!loading && error && (
+            <div style={{ padding: 24, background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, color: '#f87171', fontSize: 13 }}>
+              Erro ao buscar produtos: {error}
+            </div>
+          )}
+          {!loading && !error && (
+            <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, overflow: 'hidden' }}>
+              {products.length === 0 ? (
+                <div style={{ padding: 40, textAlign: 'center', fontSize: 13, color: '#475569' }}>Nenhum pedido pago encontrado no período.</div>
+              ) : (
+                <>
+                  <div style={{ padding: '10px 16px', borderBottom: '1px solid #1e1d2e', fontSize: 11, color: '#475569' }}>
+                    {orderCount} pedidos · {products.length} variantes
+                  </div>
+                  <div style={{ overflowX: 'auto' as any }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
+                      <thead>
+                        <tr style={{ background: '#0f0e17' }}>
+                          {['#','Produto','Variante','Qtd','Receita','Ticket Médio','% do total'].map(h => (
+                            <th key={h} style={{ fontSize: 11, color: '#475569', fontWeight: 600, textAlign: 'left', padding: '10px 14px', borderBottom: '1px solid #1e1d2e', whiteSpace: 'nowrap' as any }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {products.map((p, i) => (
+                          <tr key={i} style={{ borderBottom: '1px solid #1a1929' }}>
+                            <td style={{ padding: '11px 14px', fontSize: 12, fontWeight: 700, color: '#6366f1', minWidth: 28 }}>#{i + 1}</td>
+                            <td style={{ padding: '11px 14px', fontSize: 13, fontWeight: 600, color: '#e2e8f0', maxWidth: 220 }}>
+                              <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as any }}>{p.product_title}</div>
+                            </td>
+                            <td style={{ padding: '11px 14px', fontSize: 12, color: '#94a3b8', maxWidth: 140 }}>
+                              <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as any }}>{p.variant_title || '—'}</div>
+                            </td>
+                            <td style={{ padding: '11px 14px', fontSize: 13, fontWeight: 600, color: '#a5b4fc', whiteSpace: 'nowrap' as any }}>{num(p.qty)} un.</td>
+                            <td style={{ padding: '11px 14px', fontSize: 13, fontWeight: 700, color: '#34d399', whiteSpace: 'nowrap' as any }}>{brl(p.revenue)}</td>
+                            <td style={{ padding: '11px 14px', fontSize: 13, color: '#fbbf24', whiteSpace: 'nowrap' as any }}>{brl(p.ticket_medio)}</td>
+                            <td style={{ padding: '11px 14px', minWidth: 130 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <div style={{ flex: 1, height: 4, background: '#1e1d2e', borderRadius: 2, overflow: 'hidden' }}>
+                                  <div style={{ height: '100%', width: `${Math.min(p.pct, 100)}%`, background: 'linear-gradient(90deg,#4338ca,#7c3aed)', borderRadius: 2 }} />
+                                </div>
+                                <span style={{ fontSize: 11, color: '#64748b', minWidth: 34, textAlign: 'right' as any }}>{p.pct.toFixed(1)}%</span>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── Catálogo ── */}
+      {activeTab === 'catalogo' && (
+        <>
+          {catalogLoading && (
+            <div style={{ padding: '48px 20px', textAlign: 'center' }}>
+              <div style={{ maxWidth: 360, margin: '0 auto' }}>
+                <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 14 }}>Buscando catálogo da loja...</div>
+                <div style={{ height: 5, background: '#1e1d2e', borderRadius: 3, overflow: 'hidden', position: 'relative' }}>
+                  <div style={{ position: 'absolute', top: 0, height: '100%', background: 'linear-gradient(90deg,#4338ca,#7c3aed)', borderRadius: 3, animation: 'ld-slide2 1.6s ease-in-out infinite' }} />
+                </div>
+              </div>
+            </div>
+          )}
+          {!catalogLoading && catalogError && (
+            <div style={{ padding: 24, background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, color: '#f87171', fontSize: 13 }}>
+              Erro ao buscar catálogo: {catalogError}
+            </div>
+          )}
+          {!catalogLoading && !catalogError && catalogLoaded && (
+            <>
+              {/* Summary cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 10, marginBottom: 16 }}>
+                {[
+                  { label: 'Produtos cadastrados', val: num(totalProducts), color: '#6366f1' },
+                  { label: 'Variantes / SKUs', val: num(totalVariants), color: '#a78bfa' },
+                ].map((k, i) => (
+                  <div key={i} style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '14px 16px', position: 'relative', overflow: 'hidden' }}>
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg,${k.color},transparent)` }} />
+                    <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' as any, letterSpacing: '0.4px', marginBottom: 6 }}>{k.label}</div>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: '#f1f5f9' }}>{k.val}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Search */}
+              <div style={{ marginBottom: 12 }}>
+                <input
+                  type="text"
+                  placeholder="Buscar por produto, variante ou SKU..."
+                  value={catalogSearch}
+                  onChange={e => setCatalogSearch(e.target.value)}
+                  style={{ width: '100%', padding: '9px 14px', background: '#141320', border: '1px solid #2d2d3d', borderRadius: 10, color: '#e2e8f0', fontSize: 13, boxSizing: 'border-box' as any }}
+                />
+              </div>
+
+              {/* Expandable product list */}
+              <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, overflow: 'hidden' }}>
+                {filteredCatalog.length === 0 ? (
+                  <div style={{ padding: 32, textAlign: 'center', fontSize: 13, color: '#475569' }}>
+                    {catalogSearch ? 'Nenhum produto encontrado.' : 'Catálogo vazio.'}
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ padding: '10px 16px', borderBottom: '1px solid #1e1d2e', fontSize: 11, color: '#475569' }}>
+                      {filteredCatalog.length} produto{filteredCatalog.length !== 1 ? 's' : ''}
+                      {catalogSearch ? ` encontrado${filteredCatalog.length !== 1 ? 's' : ''}` : ''}
+                    </div>
+                    {filteredCatalog.map((p, i) => {
+                      const isOpen = expanded.has(p.id)
+                      return (
+                        <div key={p.id} style={{ borderBottom: i < filteredCatalog.length - 1 ? '1px solid #1a1929' : 'none' }}>
+                          {/* Product row */}
+                          <button
+                            onClick={() => toggleExpand(p.id)}
+                            style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', background: isOpen ? 'rgba(99,102,241,0.06)' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' as any }}
+                          >
+                            <span style={{ fontSize: 11, color: isOpen ? '#6366f1' : '#475569', transition: 'transform 0.15s', display: 'inline-block', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', flexShrink: 0 }}>▶</span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as any }}>{p.title}</div>
+                              {p.product_type && <div style={{ fontSize: 11, color: '#475569', marginTop: 1 }}>{p.product_type}</div>}
                             </div>
-                            <span style={{ fontSize: 11, color: '#64748b', minWidth: 34, textAlign: 'right' as any }}>{p.pct.toFixed(1)}%</span>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                            <span style={{ fontSize: 11, color: '#64748b', flexShrink: 0, background: '#1e1d2e', padding: '2px 8px', borderRadius: 10 }}>
+                              {p.variants.length} {p.variants.length === 1 ? 'variante' : 'variantes'}
+                            </span>
+                          </button>
+
+                          {/* Variants */}
+                          {isOpen && (
+                            <div style={{ background: '#0f0e17', borderTop: '1px solid #1e1d2e' }}>
+                              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', padding: '7px 16px 7px 44px', borderBottom: '1px solid #1e1d2e' }}>
+                                {['Variante', 'SKU', 'Preço'].map(h => (
+                                  <span key={h} style={{ fontSize: 10, fontWeight: 600, color: '#475569', textTransform: 'uppercase' as any, letterSpacing: '0.4px' }}>{h}</span>
+                                ))}
+                              </div>
+                              {p.variants.map((v: any, vi: number) => (
+                                <div key={v.id} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', padding: '9px 16px 9px 44px', borderBottom: vi < p.variants.length - 1 ? '1px solid #1a1929' : 'none', alignItems: 'center' }}>
+                                  <span style={{ fontSize: 12, color: v.title ? '#c4b5fd' : '#475569', fontStyle: v.title ? 'normal' : 'italic' }}>
+                                    {v.title || 'Padrão'}
+                                  </span>
+                                  <span style={{ fontSize: 11, color: v.sku ? '#94a3b8' : '#334155', fontFamily: 'monospace' }}>
+                                    {v.sku || '—'}
+                                  </span>
+                                  <span style={{ fontSize: 12, fontWeight: 600, color: '#34d399' }}>
+                                    {brl(v.price)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </>
+                )}
               </div>
             </>
           )}
-        </div>
+        </>
       )}
     </div>
   )
