@@ -95,7 +95,7 @@ function computeStats(allOrders: any[]) {
 
   return {
     faturamentoPago, faturamentoBruto,
-    pedidosGerados: allOrders.length, pedidosPagos: pagosValidos.length, pedidosPendentes: pendentes.length,
+    pedidosGerados: allOrders.filter((o: any) => parseFloat(o.total_price || '0') >= 1).length, pedidosPagos: pagosValidos.length, pedidosPendentes: pendentes.length,
     cartaoAprovado, cartaoPendente, boletoPago, boletoPendente, pixPago, pixPendente,
     ticketMedio, descontos, frete,
     reenvios: reenvios.length, reenviosPct,

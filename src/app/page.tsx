@@ -445,17 +445,17 @@ function DashPage({ taxas }: { taxas: any }) {
                     )
                   })}
                 </div>
-                <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #1e1d2e', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <span style={{ fontSize: 12, color: '#94a3b8' }}>Taxa de conversão</span>
-                    <div style={{ fontSize: 10, color: '#475569', marginTop: 2 }}>
-                      {hasAbandoned ? 'pedidos pagos / checkouts iniciados' : 'pedidos pagos / pedidos gerados'}
+                {hasAbandoned && (
+                  <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #1e1d2e', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <span style={{ fontSize: 12, color: '#94a3b8' }}>Taxa de conversão</span>
+                      <div style={{ fontSize: 10, color: '#475569', marginTop: 2 }}>pedidos pagos / checkouts iniciados</div>
+                    </div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: taxaConv >= 5 ? '#34d399' : taxaConv >= 2 ? '#fbbf24' : '#f87171' }}>
+                      {taxaConv.toFixed(1)}%
                     </div>
                   </div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: taxaConv >= 5 ? '#34d399' : taxaConv >= 2 ? '#fbbf24' : '#f87171' }}>
-                    {taxaConv.toFixed(1)}%
-                  </div>
-                </div>
+                )}
               </div>
             )
           })()}
