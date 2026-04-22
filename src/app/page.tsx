@@ -160,6 +160,10 @@ function DashPage({ taxas }: { taxas: any }) {
   const totalCustos = tCo + tGw + tIm + tPr + tFr + tMa + tGo + tMi
   const lucro = fat - totalCustos
   const margem = fat > 0 ? (lucro / fat) * 100 : 0
+  const cpa = pedidos > 0 && tMa > 0 ? tMa / pedidos : null
+  const cpaColor = cpa === null ? '#94a3b8' : cpa < (d.ticketMedio || 0) ? '#34d399' : '#f87171'
+  const roas = tMa > 0 ? fat / tMa : null
+  const roasColor = roas === null ? '#94a3b8' : roas >= 3 ? '#34d399' : roas >= 1.5 ? '#fbbf24' : '#f87171'
   const monthFat = Math.round((monthData?.faturamentoPago || 0) * m)
   const pct = Math.min((monthFat / metaGoal) * 100, 100)
   const proj = (monthFat / (new Date().getDate())) * new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()
@@ -230,11 +234,13 @@ function DashPage({ taxas }: { taxas: any }) {
               { label: 'Pedidos pagos', val: num(pedidos), color: '#a78bfa', sub: `de ${num(Math.round((d.pedidosGerados || 0) * m))} gerados` },
               { label: 'Ticket médio', val: brl(d.ticketMedio || 0), color: '#fbbf24' },
               { label: 'Total custos', val: brl(totalCustos), color: '#f87171' },
+              { label: 'CPA', val: cpa !== null ? brl(cpa) : '—', color: cpaColor, valColor: cpaColor, sub: 'Custo / pedido pago' },
+              { label: 'ROAS', val: roas !== null ? roas.toFixed(2) + 'x' : '—', color: roasColor, valColor: roasColor, sub: 'Fat. / gasto Ads' },
             ].map((k, i) => (
               <div key={i} style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '14px 16px', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg,${k.color},transparent)` }} />
                 <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' as any, letterSpacing: '0.4px', marginBottom: 6 }}>{k.label}</div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: '#f1f5f9' }}>{k.val}</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: (k as any).valColor || '#f1f5f9' }}>{k.val}</div>
                 {k.sub && <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>{k.sub}</div>}
               </div>
             ))}
