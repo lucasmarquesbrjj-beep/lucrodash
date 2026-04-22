@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 const SHOP = 'pelos-pets-9091.myshopify.com';
 const TOKEN = process.env.SHOPIFY_ACCESS_TOKEN!;
 
-export const maxDuration = 120;
+export const maxDuration = 60;
 
 function nowBrasilia() {
   return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
@@ -134,7 +134,7 @@ export async function GET(request: NextRequest) {
           try { ctrl.enqueue(encoder.encode(JSON.stringify(obj) + '\n')); } catch {}
         };
         const abort = new AbortController();
-        const timer = setTimeout(() => abort.abort(), 115000);
+        const timer = setTimeout(() => abort.abort(), 55000);
         try {
           const allOrders: any[] = [];
           let pageUrl: string | null = firstUrl;
@@ -169,7 +169,7 @@ export async function GET(request: NextRequest) {
 
   // Non-streaming (used by monthData and other plain fetches)
   const abort = new AbortController();
-  const timer = setTimeout(() => abort.abort(), 115000);
+  const timer = setTimeout(() => abort.abort(), 55000);
   try {
     const allOrders: any[] = [];
     let pageUrl: string | null = firstUrl;
