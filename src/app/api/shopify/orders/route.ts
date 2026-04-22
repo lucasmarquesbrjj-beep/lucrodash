@@ -166,8 +166,7 @@ export async function GET(request: NextRequest) {
   const useStream = searchParams.get('stream') === '1';
 
   const { created_at_min, created_at_max } = getDateRange(filter);
-  const isLargeFilter = filter === 'year' || filter === 'lastyear';
-  const maxOrders = isLargeFilter ? 20000 : 50000;
+  const maxOrders = filter === 'year' ? 20000 : 50000;
 
   const params = new URLSearchParams({ status: 'any', limit: '250', created_at_min, created_at_max });
   const firstUrl = `https://${SHOP}/admin/api/2024-01/orders.json?${params}`;
