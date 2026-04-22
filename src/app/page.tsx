@@ -570,6 +570,7 @@ function MetaAdsPage({ taxas, onSave }: { taxas: any, onSave: (t: any) => void }
         <div style={{ background:'rgba(99,102,241,0.08)', border:'1px solid rgba(99,102,241,0.2)', borderRadius:12, padding:'14px 18px' }}>
           <div style={{ fontSize:12, fontWeight:600, color:'#a5b4fc', marginBottom:4 }}>⚡ Integração automática em breve</div>
           <p style={{ fontSize:12, color:'#64748b', lineHeight:1.6 }}>Quando sua conta Meta Developer for aprovada, os gastos serão puxados automaticamente.</p>
+          <button onClick={() => window.location.href = '/api/auth/meta'} style={{ marginTop:10, padding:'8px 16px', borderRadius:8, background:'#1877f2', border:'none', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer' }}>Conectar com Facebook</button>
         </div>
       </div>
     </div>
