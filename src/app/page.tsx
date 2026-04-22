@@ -226,63 +226,67 @@ function DashPage({ taxas }: { taxas: any }) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 12, marginBottom: 14 }}>
             <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '16px 18px' }}>
               <div style={{ fontSize: 10, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as any, letterSpacing: '0.5px', marginBottom: 12 }}>Composição do lucro</div>
-              {([
-                { title: 'Receita', rows: [{ label: 'Faturamento pago', val: fat, pos: true }] },
-                { title: 'Taxas de Plataforma', rows: [
-                  { label: `Checkout (${taxas.checkout_pct || 0}%)`, val: tCo },
-                  { label: `Gateway (${taxas.gateway_pct || 0}%)`, val: tGw },
-                ]},
-                { title: 'Impostos', rows: [
-                  { label: `Faturamento (${taxas.imposto_pct || 0}%)`, val: tIm },
-                  { label: `Meta Ads (${taxas.imposto_meta_pct || 0}%)`, val: tMi },
-                ]},
-                { title: 'Custos Operacionais', rows: [
-                  { label: `Custo produto (${pedidos}x)`, val: tPr },
-                  { label: `Frete (${pedidos}x)`, val: tFr },
-                ]},
-                { title: 'Publicidade', rows: [
-                  { label: 'Meta Ads', val: tMa },
-                  { label: 'Google Ads', val: tGo },
-                ]},
-              ] as { title: string; rows: { label: string; val: number; pos?: boolean }[] }[]).map((sec, si) => (
-                <div key={si} style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 9, fontWeight: 700, color: '#475569', textTransform: 'uppercase' as any, letterSpacing: '0.6px', paddingBottom: 5, marginBottom: 2, borderBottom: '2px solid #2d2d3d' }}>{sec.title}</div>
-                  {sec.rows.map((r, i) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 12 }}>
-                      <span style={{ color: '#94a3b8' }}>{r.label}</span>
-                      <span style={{ fontWeight: 600, color: r.pos ? '#34d399' : '#f87171' }}>{r.pos ? '+' : '-'} {brl(Math.abs(r.val))}</span>
-                    </div>
-                  ))}
-                </div>
-              ))}
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', marginTop: 4, borderTop: '2px solid #2d2d3d' }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9' }}>Lucro líquido</span>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: lucro > 0 ? '#34d399' : '#f87171' }}>{brl(lucro)}</div>
-                  <div style={{ fontSize: 11, color: '#64748b' }}>Margem: {margem.toFixed(1)}%</div>
+              <div style={{ maxWidth: 380 }}>
+                {([
+                  { title: 'Receita', rows: [{ label: 'Faturamento pago', val: fat, pos: true }] },
+                  { title: 'Taxas de Plataforma', rows: [
+                    { label: `Checkout (${taxas.checkout_pct || 0}%)`, val: tCo },
+                    { label: `Gateway (${taxas.gateway_pct || 0}%)`, val: tGw },
+                  ]},
+                  { title: 'Impostos', rows: [
+                    { label: `Faturamento (${taxas.imposto_pct || 0}%)`, val: tIm },
+                    { label: `Meta Ads (${taxas.imposto_meta_pct || 0}%)`, val: tMi },
+                  ]},
+                  { title: 'Custos Operacionais', rows: [
+                    { label: `Custo produto (${pedidos}x)`, val: tPr },
+                    { label: `Frete (${pedidos}x)`, val: tFr },
+                  ]},
+                  { title: 'Publicidade', rows: [
+                    { label: 'Meta Ads', val: tMa },
+                    { label: 'Google Ads', val: tGo },
+                  ]},
+                ] as { title: string; rows: { label: string; val: number; pos?: boolean }[] }[]).map((sec, si) => (
+                  <div key={si} style={{ marginBottom: 10 }}>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: '#475569', textTransform: 'uppercase' as any, letterSpacing: '0.6px', paddingBottom: 5, marginBottom: 2, borderBottom: '2px solid #2d2d3d' }}>{sec.title}</div>
+                    {sec.rows.map((r, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 12 }}>
+                        <span style={{ color: '#94a3b8' }}>{r.label}</span>
+                        <span style={{ fontWeight: 600, color: r.pos ? '#34d399' : '#f87171', marginLeft: 16 }}>{r.pos ? '+' : '-'} {brl(Math.abs(r.val))}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', marginTop: 4, borderTop: '2px solid #2d2d3d' }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9' }}>Lucro líquido</span>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: lucro > 0 ? '#34d399' : '#f87171' }}>{brl(lucro)}</div>
+                    <div style={{ fontSize: 11, color: '#64748b' }}>Margem: {margem.toFixed(1)}%</div>
+                  </div>
                 </div>
               </div>
             </div>
 
             <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '16px 18px' }}>
               <div style={{ fontSize: 10, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as any, letterSpacing: '0.5px', marginBottom: 12 }}>Pedidos</div>
-              {[
-                { label: 'Gerados', val: num(Math.round((d.pedidosGerados || 0) * m)) },
-                { label: 'Pagos', val: num(pedidos), hi: true },
-                { label: 'Pendentes', val: num(Math.round((d.pedidosPendentes || 0) * m)) },
-                { label: 'Cartão aprovado', val: num(Math.round((d.cartaoAprovado || 0) * m)), hi: true },
-                { label: 'Cartão pendente', val: num(Math.round((d.cartaoPendente || 0) * m)) },
-                { label: 'PIX pago', val: num(Math.round((d.pixPago || 0) * m)), hi: true },
-                { label: 'PIX pendente', val: num(Math.round((d.pixPendente || 0) * m)) },
-                { label: 'Boleto pago', val: num(Math.round((d.boletoPago || 0) * m)), hi: true },
-                { label: 'Boleto pendente', val: num(Math.round((d.boletoPendente || 0) * m)) },
-                { label: 'Reenvios', val: `${Math.round((d.reenvios || 0) * m)} (${d.reenviosPct || 0}%)`, red: true },
-              ].map((r, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #1a1929', fontSize: 12 }}>
-                  <span style={{ color: '#94a3b8' }}>{r.label}</span>
-                  <span style={{ fontWeight: 600, color: (r as any).red ? '#fca5a5' : r.hi ? '#a5b4fc' : '#e2e8f0' }}>{r.val}</span>
-                </div>
-              ))}
+              <div style={{ maxWidth: 380 }}>
+                {[
+                  { label: 'Gerados', val: num(Math.round((d.pedidosGerados || 0) * m)) },
+                  { label: 'Pagos', val: num(pedidos), hi: true },
+                  { label: 'Pendentes', val: num(Math.round((d.pedidosPendentes || 0) * m)) },
+                  { label: 'Cartão aprovado', val: num(Math.round((d.cartaoAprovado || 0) * m)), hi: true },
+                  { label: 'Cartão pendente', val: num(Math.round((d.cartaoPendente || 0) * m)) },
+                  { label: 'PIX pago', val: num(Math.round((d.pixPago || 0) * m)), hi: true },
+                  { label: 'PIX pendente', val: num(Math.round((d.pixPendente || 0) * m)) },
+                  { label: 'Boleto pago', val: num(Math.round((d.boletoPago || 0) * m)), hi: true },
+                  { label: 'Boleto pendente', val: num(Math.round((d.boletoPendente || 0) * m)) },
+                  { label: 'Reenvios', val: `${Math.round((d.reenvios || 0) * m)} (${d.reenviosPct || 0}%)`, red: true },
+                ].map((r, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #1a1929', fontSize: 12 }}>
+                    <span style={{ color: '#94a3b8' }}>{r.label}</span>
+                    <span style={{ fontWeight: 600, color: (r as any).red ? '#fca5a5' : r.hi ? '#a5b4fc' : '#e2e8f0', marginLeft: 16 }}>{r.val}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
