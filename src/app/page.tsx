@@ -112,6 +112,7 @@ function DashPage({ taxas }: { taxas: any }) {
   const [customEnd, setCustomEnd] = useState('')
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [metaLoading, setMetaLoading] = useState(true)
   const [metaSpend, setMetaSpend] = useState<number | null>(null)
   const [monthData, setMonthData] = useState<any>(null)
   const [products, setProducts] = useState<any[]>([])
@@ -119,7 +120,7 @@ function DashPage({ taxas }: { taxas: any }) {
   const metaGoal = taxas.meta_mensal ?? 250000
 
   useEffect(() => {
-    setData(null); setLoading(true); setMetaSpend(null); setProducts([]); setFunnel(null)
+    setData(null); setLoading(true); setMetaLoading(true); setMetaSpend(null); setProducts([]); setFunnel(null)
     let cancelled = false
     fetch(`/api/shopify/orders?filter=${filter}`)
       .then(r => r.json())
@@ -127,6 +128,7 @@ function DashPage({ taxas }: { taxas: any }) {
       .catch(() => { if (!cancelled) setLoading(false) })
     fetch(`/api/meta/spend?filter=${filter}`)
       .then(r => r.json()).then(d => { if (!cancelled && typeof d.spend === 'number') setMetaSpend(d.spend) }).catch(() => {})
+      .finally(() => { if (!cancelled) setMetaLoading(false) })
     fetch('/api/shopify/orders?filter=month')
       .then(r => r.json()).then(d => { if (!cancelled) setMonthData(d) }).catch(() => {})
     fetch(`/api/shopify/products?filter=${filter}`)
@@ -224,7 +226,7 @@ function DashPage({ taxas }: { taxas: any }) {
         ))}
       </div>
 
-      {loading && (() => {
+      {(loading || metaLoading) && (() => {
         const isFast = ['today','yesterday','anteontem'].includes(filter)
         if (isFast) return null
         const msg = filter === '30d'
@@ -243,7 +245,7 @@ function DashPage({ taxas }: { taxas: any }) {
           </div>
         )
       })()}
-      {!loading && (
+      {!loading && !metaLoading && (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 14 }}>
             {[
@@ -252,7 +254,7 @@ function DashPage({ taxas }: { taxas: any }) {
               { label: 'Pedidos pagos', val: num(pedidos), color: '#a78bfa', sub: `de ${num(Math.round((d.pedidosGerados || 0) * m))} gerados` },
               { label: 'Ticket médio', val: brl(d.ticketMedio || 0), color: '#fbbf24' },
               { label: 'Total custos', val: brl(totalCustos), color: '#f87171' },
-              { label: 'CPA', val: cpa !== null ? brl(cpa) : '—', color: cpaColor, valColor: cpaColor, sub: 'Custo / pedido pago' },
+              { label: 'CPA', val: cpa !== null ? brl(cpa) : 'Sem dados de ads', color: cpaColor, valColor: cpaColor, sub: 'Custo / pedido pago' },
               { label: 'ROAS', val: roas !== null ? roas.toFixed(2) + 'x' : '—', color: roasColor, valColor: roasColor, sub: 'Fat. / gasto Ads' },
             ].map((k, i) => (
               <div key={i} style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '14px 16px', position: 'relative', overflow: 'hidden' }}>
