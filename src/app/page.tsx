@@ -104,7 +104,7 @@ const CHANNELS = [
   { id: 'geral', icon: '📊', label: 'Geral' },
 ]
 
-function DashPage({ taxas, onRefreshTaxas }: { taxas: any; onRefreshTaxas: () => void }) {
+function DashPage({ taxas }: { taxas: any }) {
   const [filter, setFilter] = useState('today')
   const [channel, setChannel] = useState('ecom')
   const [showCustom, setShowCustom] = useState(false)
@@ -112,6 +112,7 @@ function DashPage({ taxas, onRefreshTaxas }: { taxas: any; onRefreshTaxas: () =>
   const [customEnd, setCustomEnd] = useState('')
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [metaSpend, setMetaSpend] = useState<number | null>(null)
   const metaGoal = 250000
 
   const fetchData = (f: string) => {
@@ -122,11 +123,12 @@ function DashPage({ taxas, onRefreshTaxas }: { taxas: any; onRefreshTaxas: () =>
       .catch(() => setLoading(false))
   }
 
-  useEffect(() => { fetchData(filter) }, [filter])
-
   useEffect(() => {
-    fetch('/api/meta/spend').then(() => onRefreshTaxas())
-  }, [])
+    fetchData(filter)
+    fetch(`/api/meta/spend?filter=${filter}`)
+      .then(r => r.json())
+      .then(d => { if (typeof d.spend === 'number') setMetaSpend(d.spend) })
+  }, [filter])
 
   const d = data || {}
   const MULT: Record<string, number> = { ecom: 1, ml: 0.35, shopee: 0.18, geral: 1.53 }
@@ -141,7 +143,7 @@ function DashPage({ taxas, onRefreshTaxas }: { taxas: any; onRefreshTaxas: () =>
   const tIm = fat * (taxas.imposto_pct || 0) / 100
   const tPr = pedidos * (taxas.custo_produto || 0)
   const tFr = pedidos * (taxas.frete_fixo || 0)
-  const tMa = taxas.meta_ads_hoje || 0
+  const tMa = metaSpend ?? taxas.meta_ads_hoje ?? 0
   const tGo = taxas.google_ads_hoje || 0
   const tMi = tMa * (taxas.imposto_meta_pct || 0) / 100
   const totalCustos = tCo + tGw + tIm + tPr + tFr + tMa + tGo + tMi
@@ -602,7 +604,7 @@ export default function App() {
           <span style={{ fontSize: 13, color: '#64748b', marginLeft: 'auto' }}>{PAGE_LABELS[page]}</span>
         </header>
         <main style={{ flex: 1, overflowY: 'auto', padding: '18px 16px 60px' }}>
-          {page === 'dashboard' && <DashPage taxas={taxas} onRefreshTaxas={refreshTaxas} />}
+          {page === 'dashboard' && <DashPage taxas={taxas} />}
           {page === 'produtos' && <ProdutosPage />}
           {page === 'taxas' && <TaxasPage taxas={taxas} onSave={setTaxas} onToast={setToast} />}
           {page === 'lancamentos' && <LancamentosPage onToast={setToast} />}
