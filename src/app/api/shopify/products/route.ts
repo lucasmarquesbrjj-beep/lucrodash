@@ -3,38 +3,35 @@ import { NextRequest, NextResponse } from 'next/server';
 const SHOP = 'pelos-pets-9091.myshopify.com';
 const TOKEN = process.env.SHOPIFY_ACCESS_TOKEN!;
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 function nowBrasilia() {
   return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
 }
 
-export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const filter = searchParams.get('filter') || 'today';
-
+function getDateRange(filter: string) {
   const now = nowBrasilia();
   let created_at_min: string;
   let created_at_max: string = new Date().toISOString();
 
   if (filter === 'today') {
-    const start = new Date(now); start.setHours(0,0,0,0);
+    const start = new Date(now); start.setHours(0, 0, 0, 0);
     created_at_min = new Date(start.getTime() + 3 * 60 * 60 * 1000).toISOString();
   } else if (filter === 'yesterday') {
-    const start = new Date(now); start.setDate(start.getDate()-1); start.setHours(0,0,0,0);
-    const end = new Date(now); end.setHours(0,0,0,0);
+    const start = new Date(now); start.setDate(start.getDate() - 1); start.setHours(0, 0, 0, 0);
+    const end = new Date(now); end.setHours(0, 0, 0, 0);
     created_at_min = new Date(start.getTime() + 3 * 60 * 60 * 1000).toISOString();
     created_at_max = new Date(end.getTime() + 3 * 60 * 60 * 1000).toISOString();
   } else if (filter === 'anteontem') {
-    const start = new Date(now); start.setDate(start.getDate()-2); start.setHours(0,0,0,0);
-    const end = new Date(now); end.setDate(end.getDate()-1); end.setHours(0,0,0,0);
+    const start = new Date(now); start.setDate(start.getDate() - 2); start.setHours(0, 0, 0, 0);
+    const end = new Date(now); end.setDate(end.getDate() - 1); end.setHours(0, 0, 0, 0);
     created_at_min = new Date(start.getTime() + 3 * 60 * 60 * 1000).toISOString();
     created_at_max = new Date(end.getTime() + 3 * 60 * 60 * 1000).toISOString();
   } else if (filter === '7d') {
-    const start = new Date(now); start.setDate(start.getDate()-7); start.setHours(0,0,0,0);
+    const start = new Date(now); start.setDate(start.getDate() - 7); start.setHours(0, 0, 0, 0);
     created_at_min = new Date(start.getTime() + 3 * 60 * 60 * 1000).toISOString();
   } else if (filter === '30d') {
-    const start = new Date(now); start.setDate(start.getDate()-30); start.setHours(0,0,0,0);
+    const start = new Date(now); start.setDate(start.getDate() - 30); start.setHours(0, 0, 0, 0);
     created_at_min = new Date(start.getTime() + 3 * 60 * 60 * 1000).toISOString();
   } else if (filter === 'year') {
     const start = new Date(now.getFullYear(), 0, 1);
@@ -46,21 +43,27 @@ export async function GET(request: NextRequest) {
     created_at_max = new Date(end.getTime() + 3 * 60 * 60 * 1000).toISOString();
   } else if (filter.startsWith('custom:')) {
     const parts = filter.split(':');
-    const start = new Date(parts[1] + 'T00:00:00-03:00');
-    const end = new Date(parts[2] + 'T23:59:59-03:00');
-    created_at_min = start.toISOString();
-    created_at_max = end.toISOString();
+    created_at_min = new Date(parts[1] + 'T00:00:00-03:00').toISOString();
+    created_at_max = new Date(parts[2] + 'T23:59:59-03:00').toISOString();
   } else {
     // month (default)
     const start = new Date(now.getFullYear(), now.getMonth(), 1);
     created_at_min = new Date(start.getTime() + 3 * 60 * 60 * 1000).toISOString();
   }
 
-  const isLargeFilter = filter === 'year' || filter === 'lastyear';
-  const maxOrders = isLargeFilter ? 5000 : 50000;
+  return { created_at_min, created_at_max };
+}
 
-  const controller = new AbortController();
-  const abortTimer = setTimeout(() => controller.abort(), 55000);
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const filter = searchParams.get('filter') || 'month';
+
+  const { created_at_min, created_at_max } = getDateRange(filter);
+  const isLarge = filter === 'year' || filter === 'lastyear';
+  const maxOrders = isLarge ? 5000 : 50000;
+
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), 115000);
 
   try {
     const allOrders: any[] = [];
@@ -79,30 +82,31 @@ export async function GET(request: NextRequest) {
         res = await fetch(pageUrl, {
           headers: { 'X-Shopify-Access-Token': TOKEN },
           cache: 'no-store',
-          signal: controller.signal,
+          signal: abort.signal,
         });
-      } catch (fetchErr: any) {
-        if (fetchErr.name === 'AbortError') break;
-        throw fetchErr;
+      } catch (e: any) {
+        if (e.name === 'AbortError') break;
+        throw e;
       }
 
       if (!res.ok) {
         const err = await res.text();
-        return NextResponse.json({ error: err }, { status: res.status });
+        return NextResponse.json({ error: `Shopify ${res.status}: ${err}` }, { status: res.status });
       }
 
-      const { orders } = await res.json();
-      if (Array.isArray(orders)) allOrders.push(...orders);
+      const body = await res.json();
+      if (!Array.isArray(body.orders)) break;
+      allOrders.push(...body.orders);
 
-      const linkHeader = res.headers.get('Link');
-      const nextMatch = linkHeader?.match(/<([^>]+)>;\s*rel="next"/);
-      pageUrl = nextMatch ? nextMatch[1] : null;
+      const next = res.headers.get('Link')?.match(/<([^>]+)>;\s*rel="next"/);
+      pageUrl = next ? next[1] : null;
     }
 
+    // only orders with total_price >= 1
     const validOrders = allOrders.filter(o => parseFloat(o.total_price || '0') >= 1);
 
-    type VariantData = { product_title: string; variant_title: string; qty: number; revenue: number };
-    const variantMap: Record<string, VariantData> = {};
+    type VData = { product_title: string; variant_title: string; qty: number; revenue: number };
+    const variantMap: Record<string, VData> = {};
 
     for (const order of validOrders) {
       for (const item of (order.line_items || [])) {
@@ -115,8 +119,8 @@ export async function GET(request: NextRequest) {
             revenue: 0,
           };
         }
-        variantMap[key].qty += item.quantity || 0;
-        variantMap[key].revenue += parseFloat(item.price || '0') * (item.quantity || 0);
+        variantMap[key].qty += Number(item.quantity) || 0;
+        variantMap[key].revenue += parseFloat(item.price || '0') * (Number(item.quantity) || 0);
       }
     }
 
@@ -128,12 +132,12 @@ export async function GET(request: NextRequest) {
         pct: totalRevenue > 0 ? (p.revenue / totalRevenue) * 100 : 0,
       }))
       .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 20);
+      .slice(0, 50);
 
-    return NextResponse.json({ products, totalRevenue });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ products, totalRevenue, orderCount: validOrders.length });
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
   } finally {
-    clearTimeout(abortTimer);
+    clearTimeout(timer);
   }
 }

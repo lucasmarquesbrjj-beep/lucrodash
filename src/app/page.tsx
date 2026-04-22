@@ -589,78 +589,134 @@ function ConfiguracoesPage({ taxas, onSave, onToast }: { taxas: any; onSave: (t:
   )
 }
 
+const PROD_FILTERS = [['today','Hoje'],['yesterday','Ontem'],['7d','7 dias'],['month','Este mês'],['30d','30 dias'],['year','Este ano'],['lastyear','Ano passado']]
+
 function ProdutosPage() {
   const [products, setProducts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [orderCount, setOrderCount] = useState(0)
   const [filter, setFilter] = useState('month')
+  const [showCustom, setShowCustom] = useState(false)
+  const [customStart, setCustomStart] = useState('')
+  const [customEnd, setCustomEnd] = useState('')
 
   useEffect(() => {
-    setLoading(true)
-    setProducts([])
-    fetch(`/api/shopify/products?filter=${filter}`)
+    setLoading(true); setError(null); setProducts([]); setOrderCount(0)
+    let cancelled = false
+    fetch(`/api/shopify/products?filter=${encodeURIComponent(filter)}`)
       .then(r => r.json())
-      .then(d => { if (Array.isArray(d.products)) setProducts(d.products) })
-      .catch(() => {})
-      .finally(() => setLoading(false))
+      .then(d => {
+        if (cancelled) return
+        if (d.error) { setError(d.error); return }
+        if (Array.isArray(d.products)) { setProducts(d.products); setOrderCount(d.orderCount || 0) }
+      })
+      .catch(e => { if (!cancelled) setError(e.message) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
   }, [filter])
 
-  const PROD_FILTERS = [['today','Hoje'],['yesterday','Ontem'],['7d','7 dias'],['month','Este mês'],['30d','30 dias'],['year','Este ano']]
+  const isLarge = filter === 'year' || filter === 'lastyear'
+  const loadingMsg = filter === '30d' ? 'Carregando 30 dias de pedidos...'
+    : isLarge ? 'Carregando dados do ano inteiro, aguarde...'
+    : 'Buscando produtos...'
 
   return (
     <div>
+      <style>{`@keyframes ld-slide2{0%{left:-50%;width:45%}60%{width:55%}100%{left:110%;width:45%}}`}</style>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 700, color: '#f1f5f9' }}>Produtos</h1>
           <p style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>Ranking de variantes por receita — pedidos pagos</p>
         </div>
-        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-          {PROD_FILTERS.map(([v, l]) => (
-            <button key={v} onClick={() => setFilter(v)}
-              style={{ padding: '5px 12px', borderRadius: 20, fontSize: 12, border: filter === v ? '1.5px solid #6366f1' : '1px solid #2d2d3d', background: filter === v ? 'rgba(99,102,241,0.15)' : 'transparent', color: filter === v ? '#a5b4fc' : '#64748b', cursor: 'pointer' }}>{l}</button>
-          ))}
+        <div>
+          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 6 }}>
+            {PROD_FILTERS.map(([v, l]) => (
+              <button key={v} onClick={() => { setFilter(v); setShowCustom(false) }}
+                style={{ padding: '5px 12px', borderRadius: 20, fontSize: 12, border: filter === v && !showCustom ? '1.5px solid #6366f1' : '1px solid #2d2d3d', background: filter === v && !showCustom ? 'rgba(99,102,241,0.15)' : 'transparent', color: filter === v && !showCustom ? '#a5b4fc' : '#64748b', cursor: 'pointer' }}>{l}</button>
+            ))}
+            <button onClick={() => setShowCustom(!showCustom)}
+              style={{ padding: '5px 12px', borderRadius: 20, fontSize: 12, border: showCustom ? '1.5px solid #6366f1' : '1px solid #2d2d3d', background: showCustom ? 'rgba(99,102,241,0.15)' : 'transparent', color: showCustom ? '#a5b4fc' : '#64748b', cursor: 'pointer' }}>📅 Período</button>
+          </div>
+          {showCustom && (
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+              <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} style={{ padding: '4px 8px', fontSize: 12, borderRadius: 8, background: '#0f0e17', border: '1px solid #2d2d3d', color: '#e2e8f0' }} />
+              <span style={{ color: '#64748b', fontSize: 12 }}>até</span>
+              <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} style={{ padding: '4px 8px', fontSize: 12, borderRadius: 8, background: '#0f0e17', border: '1px solid #2d2d3d', color: '#e2e8f0' }} />
+              <button onClick={() => { if (customStart && customEnd) { setFilter(`custom:${customStart}:${customEnd}`); setShowCustom(false) } }}
+                style={{ padding: '5px 14px', borderRadius: 20, fontSize: 12, background: 'linear-gradient(135deg,#4338ca,#7c3aed)', border: 'none', color: '#fff', cursor: 'pointer' }}>Buscar</button>
+            </div>
+          )}
         </div>
       </div>
-      <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, overflow: 'hidden' }}>
-        {loading ? (
-          <div style={{ padding: 40, textAlign: 'center', fontSize: 13, color: '#475569' }}>Buscando produtos...</div>
-        ) : products.length === 0 ? (
-          <div style={{ padding: 40, textAlign: 'center', fontSize: 13, color: '#475569' }}>Sem dados para o período.</div>
-        ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: '#0f0e17' }}>
-                {['#','Produto','Variante','Qtd','Receita','Ticket Médio','% do total'].map(h => (
-                  <th key={h} style={{ fontSize: 11, color: '#475569', fontWeight: 600, textAlign: 'left', padding: '10px 14px', borderBottom: '1px solid #1e1d2e', whiteSpace: 'nowrap' as any }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {products.map((p, i) => (
-                <tr key={i} style={{ borderBottom: '1px solid #1a1929' }}>
-                  <td style={{ padding: '11px 14px', fontSize: 12, fontWeight: 700, color: '#6366f1', minWidth: 28 }}>#{i + 1}</td>
-                  <td style={{ padding: '11px 14px', fontSize: 13, fontWeight: 600, color: '#e2e8f0', maxWidth: 220 }}>
-                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as any }}>{p.product_title}</div>
-                  </td>
-                  <td style={{ padding: '11px 14px', fontSize: 12, color: '#94a3b8', maxWidth: 140 }}>
-                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as any }}>{p.variant_title || '—'}</div>
-                  </td>
-                  <td style={{ padding: '11px 14px', fontSize: 13, fontWeight: 600, color: '#a5b4fc', whiteSpace: 'nowrap' as any }}>{num(p.qty)} un.</td>
-                  <td style={{ padding: '11px 14px', fontSize: 13, fontWeight: 700, color: '#34d399', whiteSpace: 'nowrap' as any }}>{brl(p.revenue)}</td>
-                  <td style={{ padding: '11px 14px', fontSize: 13, color: '#fbbf24', whiteSpace: 'nowrap' as any }}>{brl(p.ticket_medio)}</td>
-                  <td style={{ padding: '11px 14px', minWidth: 120 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{ flex: 1, height: 4, background: '#1e1d2e', borderRadius: 2, overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${Math.min(p.pct, 100)}%`, background: 'linear-gradient(90deg,#4338ca,#7c3aed)', borderRadius: 2 }} />
-                      </div>
-                      <span style={{ fontSize: 11, color: '#64748b', minWidth: 34, textAlign: 'right' as any }}>{p.pct.toFixed(1)}%</span>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+
+      {loading && (
+        <div style={{ padding: '48px 20px', textAlign: 'center' }}>
+          <div style={{ maxWidth: 360, margin: '0 auto' }}>
+            <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 14 }}>{loadingMsg}</div>
+            {!['today','yesterday','anteontem'].includes(filter) && (
+              <div style={{ height: 5, background: '#1e1d2e', borderRadius: 3, overflow: 'hidden', position: 'relative' }}>
+                <div style={{ position: 'absolute', top: 0, height: '100%', background: 'linear-gradient(90deg,#4338ca,#7c3aed)', borderRadius: 3, animation: 'ld-slide2 1.6s ease-in-out infinite' }} />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {!loading && error && (
+        <div style={{ padding: 24, background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, color: '#f87171', fontSize: 13 }}>
+          Erro ao buscar produtos: {error}
+        </div>
+      )}
+
+      {!loading && !error && (
+        <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, overflow: 'hidden' }}>
+          {products.length === 0 ? (
+            <div style={{ padding: 40, textAlign: 'center', fontSize: 13, color: '#475569' }}>Nenhum pedido pago encontrado no período.</div>
+          ) : (
+            <>
+              <div style={{ padding: '10px 16px', borderBottom: '1px solid #1e1d2e', fontSize: 11, color: '#475569' }}>
+                {orderCount} pedidos · {products.length} variantes
+              </div>
+              <div style={{ overflowX: 'auto' as any }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
+                  <thead>
+                    <tr style={{ background: '#0f0e17' }}>
+                      {['#','Produto','Variante','Qtd','Receita','Ticket Médio','% do total'].map(h => (
+                        <th key={h} style={{ fontSize: 11, color: '#475569', fontWeight: 600, textAlign: 'left', padding: '10px 14px', borderBottom: '1px solid #1e1d2e', whiteSpace: 'nowrap' as any }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {products.map((p, i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid #1a1929' }}>
+                        <td style={{ padding: '11px 14px', fontSize: 12, fontWeight: 700, color: '#6366f1', minWidth: 28 }}>#{i + 1}</td>
+                        <td style={{ padding: '11px 14px', fontSize: 13, fontWeight: 600, color: '#e2e8f0', maxWidth: 220 }}>
+                          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as any }}>{p.product_title}</div>
+                        </td>
+                        <td style={{ padding: '11px 14px', fontSize: 12, color: '#94a3b8', maxWidth: 140 }}>
+                          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as any }}>{p.variant_title || '—'}</div>
+                        </td>
+                        <td style={{ padding: '11px 14px', fontSize: 13, fontWeight: 600, color: '#a5b4fc', whiteSpace: 'nowrap' as any }}>{num(p.qty)} un.</td>
+                        <td style={{ padding: '11px 14px', fontSize: 13, fontWeight: 700, color: '#34d399', whiteSpace: 'nowrap' as any }}>{brl(p.revenue)}</td>
+                        <td style={{ padding: '11px 14px', fontSize: 13, color: '#fbbf24', whiteSpace: 'nowrap' as any }}>{brl(p.ticket_medio)}</td>
+                        <td style={{ padding: '11px 14px', minWidth: 130 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{ flex: 1, height: 4, background: '#1e1d2e', borderRadius: 2, overflow: 'hidden' }}>
+                              <div style={{ height: '100%', width: `${Math.min(p.pct, 100)}%`, background: 'linear-gradient(90deg,#4338ca,#7c3aed)', borderRadius: 2 }} />
+                            </div>
+                            <span style={{ fontSize: 11, color: '#64748b', minWidth: 34, textAlign: 'right' as any }}>{p.pct.toFixed(1)}%</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   )
 }
