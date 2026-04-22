@@ -117,6 +117,9 @@ function DashPage({ taxas }: { taxas: any }) {
   const [monthData, setMonthData] = useState<any>(null)
   const [products, setProducts] = useState<any[]>([])
   const [funnel, setFunnel] = useState<{ abandoned: number } | null>(null)
+  const [mlData, setMlData] = useState<any>(null)
+  const [mlLoading, setMlLoading] = useState(false)
+  const [mlNotConnected, setMlNotConnected] = useState(false)
   const metaGoal = taxas.meta_mensal ?? 250000
 
   useEffect(() => {
@@ -166,8 +169,43 @@ function DashPage({ taxas }: { taxas: any }) {
     return () => { cancelled = true }
   }, [filter])
 
-  const d = data || {}
-  const MULT: Record<string, number> = { ecom: 1, ml: 0.35, shopee: 0.18, geral: 1.53 }
+  useEffect(() => {
+    if (channel !== 'ml') { setMlData(null); setMlNotConnected(false); return }
+    let cancelled = false
+    setMlNotConnected(false)
+    const mlKey = `hd_ml_${filter}`
+    try {
+      const stale = sessionStorage.getItem(mlKey)
+      if (stale) { setMlData(JSON.parse(stale)); setMlLoading(false) }
+      else { setMlData(null); setMlLoading(true) }
+    } catch { setMlData(null); setMlLoading(true) }
+    fetch(`/api/ml/orders?filter=${filter}`)
+      .then(r => r.json())
+      .then(d => {
+        if (!cancelled) {
+          if (d.notConnected) { setMlNotConnected(true); setMlLoading(false) }
+          else if (!d.error) {
+            setMlData(d); setMlLoading(false)
+            try { sessionStorage.setItem(mlKey, JSON.stringify(d)) } catch {}
+          } else setMlLoading(false)
+        }
+      })
+      .catch(() => { if (!cancelled) setMlLoading(false) })
+    return () => { cancelled = true }
+  }, [channel, filter])
+
+  const isML = channel === 'ml'
+  const d = isML
+    ? (mlData ? {
+        faturamentoPago: mlData.faturamentoPago, faturamentoBruto: mlData.faturamentoPago,
+        pedidosPagos: mlData.pedidosPagos, pedidosGerados: mlData.pedidosPagos,
+        ticketMedio: mlData.ticketMedio, hourly: mlData.hourly || Array(24).fill(0),
+        states: [], pedidosPendentes: 0, descontos: 0, frete: 0,
+        cartaoAprovado: 0, cartaoPendente: 0, pixPago: 0, pixPendente: 0,
+        boletoPago: 0, boletoPendente: 0, reenvios: 0, reenviosPct: 0,
+      } : {})
+    : (data || {})
+  const MULT: Record<string, number> = { ecom: 1, ml: 1, shopee: 0.18, geral: 1.53 }
   const m = MULT[channel] || 1
   const fat = Math.round((d.faturamentoPago || 0) * m)
   const pedidos = Math.round((d.pedidosPagos || 0) * m)
@@ -255,7 +293,7 @@ function DashPage({ taxas }: { taxas: any }) {
         ))}
       </div>
 
-      {loading && (() => {
+      {(loading || (isML && mlLoading && !mlData)) && (() => {
         const sh: React.CSSProperties = {
           background: 'linear-gradient(90deg,#1a1929 25%,#252436 50%,#1a1929 75%)',
           backgroundSize: '400px 100%',
@@ -354,7 +392,14 @@ function DashPage({ taxas }: { taxas: any }) {
           </div>
         )
       })()}
-      {!loading && (
+      {isML && mlNotConnected && (
+        <div style={{ padding: '32px 20px', background: '#141320', border: '1px solid #292131', borderRadius: 14, marginBottom: 14, textAlign: 'center' as any }}>
+          <div style={{ fontSize: 28, marginBottom: 10 }}>🟡</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>Mercado Livre não conectado</div>
+          <div style={{ fontSize: 12, color: '#64748b' }}>Conecte sua conta em <strong style={{ color: '#a5b4fc' }}>Integrações</strong> para ver os dados reais do ML.</div>
+        </div>
+      )}
+      {!loading && !(isML && mlLoading && !mlData) && !mlNotConnected && (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 14 }}>
             {[
@@ -771,7 +816,10 @@ function IntegracoesPage({ onToast }: { onToast: (m: string) => void }) {
   useEffect(() => {
     fetch('/api/taxas')
       .then(r => r.json())
-      .then(d => { if (d.meta_access_token) setMeta(true) })
+      .then(d => {
+        if (d.meta_access_token) setMeta(true)
+        if (d.ml_access_token) setMl(true)
+      })
   }, [])
 
   const IntCard = ({ icon, iconBg, title, desc, connected, onToggle, connectLabel, connectBg }: any) => (
@@ -797,7 +845,7 @@ function IntegracoesPage({ onToast }: { onToast: (m: string) => void }) {
       <div style={{ marginBottom: 18 }}><h1 style={{ fontSize: 20, fontWeight: 700, color: '#f1f5f9' }}>Integrações</h1><p style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>Conecte suas plataformas</p></div>
       <IntCard icon="🛒" iconBg="rgba(149,191,71,0.15)" title="Shopify" desc="Pedidos e faturamento em tempo real" connected={shopify} connectLabel="Conectar com Shopify" connectBg="linear-gradient(135deg,#4338ca,#7c3aed)" onToggle={() => { setShopify(!shopify); onToast(shopify ? 'Shopify desconectada' : 'Shopify conectada!') }} />
       <IntCard icon="📘" iconBg="rgba(24,119,242,0.15)" title="Meta Ads" desc="Gastos com anúncios automaticamente" connected={meta} connectLabel="Conectar com Facebook" connectBg="linear-gradient(135deg,#1877f2,#0d5abf)" onToggle={() => { if (!meta) { window.location.href = '/api/auth/meta' } else { setMeta(false); onToast('Meta Ads desconectado') } }} />
-      <IntCard icon="🟡" iconBg="rgba(251,191,36,0.15)" title="Mercado Livre" desc="Pedidos e faturamento do ML" connected={ml} connectLabel="Conectar com Mercado Livre" connectBg="linear-gradient(135deg,#f5a623,#e08e00)" onToggle={() => { setMl(!ml); onToast(ml ? 'Mercado Livre desconectado' : 'Mercado Livre conectado!') }} />
+      <IntCard icon="🟡" iconBg="rgba(251,191,36,0.15)" title="Mercado Livre" desc="Pedidos e faturamento do ML" connected={ml} connectLabel="Conectar com Mercado Livre" connectBg="linear-gradient(135deg,#f5a623,#e08e00)" onToggle={() => { if (!ml) { window.location.href = '/api/auth/ml' } else { setMl(false); onToast('Mercado Livre desconectado') } }} />
       <IntCard icon="🧡" iconBg="rgba(249,115,22,0.15)" title="Shopee" desc="Pedidos e faturamento da Shopee" connected={shopee} connectLabel="Conectar com Shopee" connectBg="linear-gradient(135deg,#f97316,#c2410c)" onToggle={() => { setShopee(!shopee); onToast(shopee ? 'Shopee desconectada' : 'Shopee conectada!') }} />
       <IntCard icon="🎯" iconBg="rgba(234,67,53,0.15)" title="Google Ads" desc="Gastos com anúncios automaticamente" connected={google} connectLabel="Conectar com Google Ads" connectBg="linear-gradient(135deg,#ea4335,#c5221f)" onToggle={() => { setGoogle(!google); onToast(google ? 'Google Ads desconectado' : 'Google Ads conectado!') }} />
     </div>
@@ -1186,6 +1234,17 @@ export default function App() {
   useLayoutEffect(() => {
     setUser(localStorage.getItem('holydash_user'))
     setAuthReady(true)
+  }, [])
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.has('ml_connected') || params.has('ml_error') || params.has('meta_connected') || params.has('meta_error')) {
+      if (params.get('ml_connected') === 'true') { setPage('integracoes'); setToast('Mercado Livre conectado!') }
+      if (params.get('ml_error') === 'true') setToast('Erro ao conectar Mercado Livre')
+      if (params.get('meta_connected') === 'true') { setPage('integracoes'); setToast('Meta Ads conectado!') }
+      if (params.get('meta_error') === 'true') setToast('Erro ao conectar Meta Ads')
+      window.history.replaceState({}, '', '/')
+    }
   }, [])
 
   const refreshTaxas = () => fetch('/api/taxas').then(r => r.json()).then(setTaxas)
