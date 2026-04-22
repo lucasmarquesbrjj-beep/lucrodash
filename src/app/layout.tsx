@@ -2,9 +2,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="pt-BR">
       <head>
-        <title>LucroDash · Faturamento é vaidade. Lucro é realidade.</title>
+        <title>Holy Dash · Ferramentas para quem constrói com propósito</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="description" content="Faturamento é vaidade. Lucro é realidade." />
+        <meta name="description" content="Ferramentas para quem constrói com propósito" />
        <link rel="icon" type="image/png" href="/favicon.png" sizes="32x32" />
 <link rel="apple-touch-icon" href="/favicon.png" />
         <style>{`
