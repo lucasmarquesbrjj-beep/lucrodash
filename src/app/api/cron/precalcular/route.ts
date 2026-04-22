@@ -8,7 +8,8 @@ const SB_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 export const maxDuration = 60;
 
 // Filters to pre-calculate, ordered fastest → slowest so partial runs still help
-const FILTERS_TO_CACHE = ['today', 'yesterday', '7d', 'month', '30d', 'year'];
+// year/lastyear excluded — cron's 25s budget can't reliably fetch a full year of orders
+const FILTERS_TO_CACHE = ['today', 'yesterday', '7d', 'month', '30d'];
 
 function nowBrasilia() {
   return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
@@ -132,9 +133,10 @@ async function fetchAndCache(filter: string): Promise<{ ok: boolean; orders: num
       pageUrl = next ? next[1] : null;
     }
 
-    // Don't write zeros to cache — aborted fetch poisons the cache with empty results
+    // Don't write zeros or truncated data — incomplete results poison the cache
     if (!aborted && allOrders.length > 0) {
       const data = { ...computeStats(allOrders), truncated: allOrders.length >= maxOrders };
+      if (data.truncated) return { ok: false, orders: allOrders.length };
       await fetch(`${SB_URL}/rest/v1/cache_dashboard`, {
         method: 'POST',
         headers: {

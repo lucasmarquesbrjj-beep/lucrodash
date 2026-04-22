@@ -32,6 +32,8 @@ async function readCache(filter: string): Promise<any | null> {
     const dados = rows[0].dados;
     // Reject cached zeros for historical filters — likely from an aborted cron fetch
     if (filter !== 'today' && (dados?.pedidosGerados ?? 0) === 0) return null;
+    // Reject truncated entries — partial data from a previous cap-limited fetch
+    if (dados?.truncated) return null;
     return dados;
   } catch { return null; }
 }
@@ -165,7 +167,7 @@ export async function GET(request: NextRequest) {
 
   const { created_at_min, created_at_max } = getDateRange(filter);
   const isLargeFilter = filter === 'year' || filter === 'lastyear';
-  const maxOrders = isLargeFilter ? 5000 : 50000;
+  const maxOrders = isLargeFilter ? 20000 : 50000;
 
   const params = new URLSearchParams({ status: 'any', limit: '250', created_at_min, created_at_max });
   const firstUrl = `https://${SHOP}/admin/api/2024-01/orders.json?${params}`;
@@ -251,7 +253,7 @@ export async function GET(request: NextRequest) {
       pageUrl = next ? next[1] : null;
     }
     const result = { ...computeStats(allOrders), truncated: allOrders.length >= maxOrders };
-    if (!filter.startsWith('custom:') && !aborted && allOrders.length > 0) writeCache(filter, result);
+    if (!filter.startsWith('custom:') && !aborted && !result.truncated && allOrders.length > 0) writeCache(filter, result);
     return NextResponse.json(result);
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
