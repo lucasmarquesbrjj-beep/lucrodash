@@ -112,33 +112,45 @@ function DashPage({ taxas }: { taxas: any }) {
   const [customEnd, setCustomEnd] = useState('')
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [loadingCount, setLoadingCount] = useState(0)
   const [metaSpend, setMetaSpend] = useState<number | null>(null)
   const [monthData, setMonthData] = useState<any>(null)
   const [products, setProducts] = useState<any[]>([])
   const metaGoal = 250000
 
-  const fetchData = (f: string) => {
-    setLoading(true)
-    fetch(`/api/shopify/orders?filter=${f}`)
-      .then(r => r.json())
-      .then(d => { setData(d); setLoading(false) })
-      .catch(() => setLoading(false))
-  }
-
   useEffect(() => {
-    fetchData(filter)
+    setData(null); setLoading(true); setLoadingCount(0); setMetaSpend(null); setProducts([])
+    const ctrl = new AbortController()
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/shopify/orders?filter=${filter}&stream=1`, { signal: ctrl.signal })
+        const reader = res.body!.getReader()
+        const dec = new TextDecoder()
+        let buf = ''
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done || cancelled) break
+          buf += dec.decode(value, { stream: true })
+          const lines = buf.split('\n'); buf = lines.pop() ?? ''
+          for (const line of lines) {
+            if (!line.trim()) continue
+            try {
+              const msg = JSON.parse(line)
+              if (msg.type === 'progress' && !cancelled) setLoadingCount(msg.count)
+              else if (msg.type === 'result' && !cancelled) { setData(msg.data); setLoading(false) }
+            } catch {}
+          }
+        }
+      } catch { if (!cancelled) setLoading(false) }
+    })()
     fetch(`/api/meta/spend?filter=${filter}`)
-      .then(r => r.json())
-      .then(d => { if (typeof d.spend === 'number') setMetaSpend(d.spend) })
+      .then(r => r.json()).then(d => { if (!cancelled && typeof d.spend === 'number') setMetaSpend(d.spend) }).catch(() => {})
     fetch('/api/shopify/orders?filter=month')
-      .then(r => r.json())
-      .then(d => setMonthData(d))
-      .catch(() => {})
-    setProducts([])
+      .then(r => r.json()).then(d => { if (!cancelled) setMonthData(d) }).catch(() => {})
     fetch(`/api/shopify/products?filter=${filter}`)
-      .then(r => r.json())
-      .then(d => { if (Array.isArray(d.products)) setProducts(d.products) })
-      .catch(() => {})
+      .then(r => r.json()).then(d => { if (!cancelled && Array.isArray(d.products)) setProducts(d.products) }).catch(() => {})
+    return () => { cancelled = true; ctrl.abort() }
   }, [filter])
 
   const d = data || {}
@@ -154,7 +166,7 @@ function DashPage({ taxas }: { taxas: any }) {
   const tIm = fat * (taxas.imposto_pct || 0) / 100
   const tPr = pedidos * (taxas.custo_produto || 0)
   const tFr = pedidos * (taxas.frete_fixo || 0)
-  const tMa = metaSpend ?? taxas.meta_ads_hoje ?? 0
+  const tMa = metaSpend !== null ? metaSpend : (filter === 'today' ? (taxas.meta_ads_hoje ?? 0) : 0)
   const tGo = taxas.google_ads_hoje || 0
   const tMi = tMa * (taxas.imposto_meta_pct || 0) / 100
   const totalCustos = tCo + tGw + tIm + tPr + tFr + tMa + tGo + tMi
@@ -172,15 +184,7 @@ function DashPage({ taxas }: { taxas: any }) {
 
   return (
     <div>
-      <style>{`
-        @media(max-width:600px){.grid-lucro-pedidos{grid-template-columns:1fr!important}}
-        @keyframes progress-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
-      `}</style>
-      {loading && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 3, zIndex: 1000, overflow: 'hidden' }}>
-          <div style={{ height: '100%', background: 'linear-gradient(90deg,#4338ca,#7c3aed,#6366f1,#4338ca)', backgroundSize: '300% 100%', animation: 'progress-shimmer 1.5s linear infinite' }} />
-        </div>
-      )}
+      <style>{`@media(max-width:600px){.grid-lucro-pedidos{grid-template-columns:1fr!important}}`}</style>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 700, color: '#f1f5f9' }}>Dashboard</h1>
@@ -217,11 +221,20 @@ function DashPage({ taxas }: { taxas: any }) {
       </div>
 
       {loading && (
-        <div style={{ textAlign: 'center', padding: 48, color: '#64748b' }}>
-          <div style={{ fontSize: 13, color: '#94a3b8' }}>
-            {(filter === 'year' || filter === 'lastyear')
-              ? '⏳ Carregando dados do ano, isso pode levar até 30s...'
-              : '⏳ Buscando pedidos... aguarde'}
+        <div style={{ padding: '60px 20px', textAlign: 'center' }}>
+          <div style={{ maxWidth: 360, margin: '0 auto' }}>
+            <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 14 }}>
+              {loadingCount > 0
+                ? `Buscando pedidos... ${loadingCount} encontrados`
+                : (filter === 'year' || filter === 'lastyear')
+                  ? 'Carregando dados do ano, isso pode levar até 30s...'
+                  : 'Buscando pedidos... aguarde'}
+            </div>
+            <div style={{ height: 6, background: '#1e1d2e', borderRadius: 3, overflow: 'hidden' }}>
+              <div style={{ height: '100%', background: 'linear-gradient(90deg,#4338ca,#7c3aed)', borderRadius: 3,
+                width: `${loadingCount > 0 ? Math.max(4, Math.min((loadingCount / 5000) * 100, 95)) : 4}%`,
+                transition: 'width 0.3s ease' }} />
+            </div>
           </div>
         </div>
       )}
