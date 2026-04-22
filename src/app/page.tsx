@@ -321,14 +321,11 @@ function DashPage({ taxas }: { taxas: any }) {
 function TaxasPage({ taxas, onSave, onToast }: { taxas: any; onSave: (t: any) => void; onToast: (m: string) => void }) {
   const [t, setT] = useState({
     checkout_pct: taxas.checkout_pct ?? 0.5,
-    checkout_fixo_mensal: taxas.checkout_fixo_mensal ?? 1500,
     gateway_pct: taxas.gateway_pct ?? 5,
     imposto_pct: taxas.imposto_pct ?? 16,
     imposto_meta_pct: taxas.imposto_meta_pct ?? 13.65,
     frete_fixo: taxas.frete_fixo ?? 15,
     custo_produto: taxas.custo_produto ?? 8,
-    meta_ads_hoje: taxas.meta_ads_hoje ?? 0,
-    google_ads_hoje: taxas.google_ads_hoje ?? 0,
   })
   const [saving, setSaving] = useState(false)
 
@@ -352,10 +349,9 @@ function TaxasPage({ taxas, onSave, onToast }: { taxas: any; onSave: (t: any) =>
   )
 
   const sections = [
-    { title: 'Taxas de pagamento', color: '#a5b4fc', fields: [['Taxa checkout %','checkout_pct','%','Percentual por venda'],['Checkout fixo mensal','checkout_fixo_mensal','R$','Mensalidade fixa'],['Taxa gateway','gateway_pct','%','Sobre valor aprovado']] },
+    { title: 'Taxas de pagamento', color: '#a5b4fc', fields: [['Taxa checkout %','checkout_pct','%','Percentual por venda'],['Taxa gateway','gateway_pct','%','Sobre valor aprovado']] },
     { title: 'Custos fixos', color: '#fbbf24', fields: [['Custo por produto','custo_produto','R$','Por unidade vendida'],['Frete por pedido','frete_fixo','R$','Custo médio de envio']] },
     { title: 'Impostos', color: '#f87171', fields: [['Imposto s/ faturamento','imposto_pct','%','Sobre receita paga'],['Imposto s/ Meta Ads','imposto_meta_pct','%','IOF + ISS sobre ads']] },
-    { title: 'Ads de Hoje', color: '#34d399', fields: [['Meta Ads hoje','meta_ads_hoje','R$','Gasto do dia'],['Google Ads hoje','google_ads_hoje','R$','Gasto do dia']] },
   ]
 
   return (
