@@ -227,9 +227,20 @@ function DashPage({ taxas }: { taxas: any }) {
         ))}
       </div>
 
-      {(loading || metaLoading) && (() => {
+      {loading && (() => {
         const isFast = ['today','yesterday','anteontem'].includes(filter)
-        if (isFast) return null
+        if (isFast) return (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 14 }}>
+            {Array(7).fill(0).map((_, i) => (
+              <div key={i} style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '14px 16px', position: 'relative', overflow: 'hidden' }}>
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: 'linear-gradient(90deg,#2d2d3d,transparent)' }} />
+                <div style={{ height: 10, width: '60%', background: '#1e1d2e', borderRadius: 4, marginBottom: 10 }} />
+                <div style={{ height: 24, width: '75%', background: '#1e1d2e', borderRadius: 4, marginBottom: 8 }} />
+                <div style={{ height: 10, width: '40%', background: '#1e1d2e', borderRadius: 4 }} />
+              </div>
+            ))}
+          </div>
+        )
         const msg = filter === '30d'
           ? 'Carregando 30 dias de pedidos, aguarde...'
           : (filter === 'year' || filter === 'lastyear')
@@ -246,7 +257,7 @@ function DashPage({ taxas }: { taxas: any }) {
           </div>
         )
       })()}
-      {!loading && !metaLoading && (
+      {!loading && (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 14 }}>
             {[
@@ -1071,15 +1082,10 @@ export default function App() {
   const [page, setPage] = useState<Page>('dashboard')
   const [menuOpen, setMenuOpen] = useState(false)
   const [taxas, setTaxas] = useState<any>({})
-  const [user, setUser] = useState<string | null>(null)
-  const [checkingAuth, setCheckingAuth] = useState(true)
+  const [user, setUser] = useState<string | null>(() => {
+    try { return localStorage.getItem('holydash_user') } catch { return null }
+  })
   const [toast, setToast] = useState('')
-
-  useEffect(() => {
-    const saved = localStorage.getItem('holydash_user')
-    if (saved) setUser(saved)
-    setCheckingAuth(false)
-  }, [])
 
   const refreshTaxas = () => fetch('/api/taxas').then(r => r.json()).then(setTaxas)
 
@@ -1087,7 +1093,6 @@ export default function App() {
     if (user) refreshTaxas()
   }, [user])
 
-  if (checkingAuth) return <div style={{ minHeight: '100vh', background: '#0a0918' }} />
   if (!user) return <LoginPage onLogin={setUser} />
 
   return (
