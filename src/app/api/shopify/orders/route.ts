@@ -211,18 +211,21 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  // Non-streaming — check cache first
-  if (!filter.startsWith('custom:')) {
-    const cached = await readCache(filter);
-    if (cached) return NextResponse.json({ ...cached, fromCache: true });
-  }
-
+  // Start abort timer BEFORE cache check so it covers the full request duration
   let aborted = false;
   const abort = new AbortController();
-  const timer = setTimeout(() => { abort.abort(); aborted = true; }, 55000);
+  const timer = setTimeout(() => { abort.abort(); aborted = true; }, 50000);
+
   try {
+    // Non-streaming — check cache first
+    if (!filter.startsWith('custom:')) {
+      const cached = await readCache(filter);
+      if (cached) return NextResponse.json({ ...cached, fromCache: true });
+    }
+
     const allOrders: any[] = [];
     let pageUrl: string | null = firstUrl;
+    let retries = 0;
     while (pageUrl && allOrders.length < maxOrders) {
       let res: Response;
       try {
@@ -231,7 +234,17 @@ export async function GET(request: NextRequest) {
         if (e.name === 'AbortError') break;
         throw e;
       }
-      if (!res.ok) { const err = await res.text(); return NextResponse.json({ error: err }, { status: res.status }); }
+      if (!res.ok) {
+        if (res.status === 429 && retries < 3) {
+          // Rate limited — back off exponentially and retry the same page
+          retries++;
+          await new Promise(r => setTimeout(r, 1500 * retries));
+          continue;
+        }
+        // Other Shopify errors: return whatever we've collected so far
+        break;
+      }
+      retries = 0;
       const { orders } = await res.json();
       if (Array.isArray(orders)) allOrders.push(...orders);
       const next = res.headers.get('Link')?.match(/<([^>]+)>;\s*rel="next"/);

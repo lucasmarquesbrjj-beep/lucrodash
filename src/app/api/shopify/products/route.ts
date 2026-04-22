@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
   const maxOrders = isLarge ? 5000 : 50000;
 
   const abort = new AbortController();
-  const timer = setTimeout(() => abort.abort(), 55000);
+  const timer = setTimeout(() => abort.abort(), 50000);
 
   try {
     const allOrders: any[] = [];
@@ -75,6 +75,7 @@ export async function GET(request: NextRequest) {
       created_at_max,
     });
     let pageUrl: string | null = `https://${SHOP}/admin/api/2024-01/orders.json?${params}`;
+    let retries = 0;
 
     while (pageUrl && allOrders.length < maxOrders) {
       let res: Response;
@@ -90,9 +91,14 @@ export async function GET(request: NextRequest) {
       }
 
       if (!res.ok) {
-        const err = await res.text();
-        return NextResponse.json({ error: `Shopify ${res.status}: ${err}` }, { status: res.status });
+        if (res.status === 429 && retries < 3) {
+          retries++;
+          await new Promise(r => setTimeout(r, 1500 * retries));
+          continue;
+        }
+        break; // Other errors: return partial data
       }
+      retries = 0;
 
       const body = await res.json();
       if (!Array.isArray(body.orders)) break;

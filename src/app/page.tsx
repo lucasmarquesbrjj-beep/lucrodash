@@ -124,7 +124,7 @@ function DashPage({ taxas }: { taxas: any }) {
     let cancelled = false
     fetch(`/api/shopify/orders?filter=${filter}`)
       .then(r => r.json())
-      .then(d => { if (!cancelled) { setData(d); setLoading(false) } })
+      .then(d => { if (!cancelled) { if (!d?.error) setData(d); setLoading(false) } })
       .catch(() => { if (!cancelled) setLoading(false) })
     fetch(`/api/meta/spend?filter=${filter}`)
       .then(r => r.json())
