@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
     const pixPago = pagos.filter((o: any) => getPaymentType(o).includes('pix')).length;
     const pixPendente = pendentes.filter((o: any) => getPaymentType(o).includes('pix')).length;
 
-    const ticketMedio = pagos.length > 0 ? faturamentoPago / pagos.length : 0;
+    const ticketMedio = pagosValidos.length > 0 ? faturamentoPago / pagosValidos.length : 0;
     const descontos = orders.reduce((s: number, o: any) => s + parseFloat(o.total_discounts || '0'), 0);
     const frete = pagosValidos.reduce((s: number, o: any) => s + parseFloat(o.total_shipping_price_set?.shop_money?.amount || '0'), 0);
 
