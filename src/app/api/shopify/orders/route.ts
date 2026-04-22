@@ -41,14 +41,19 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    let allOrders: any[] = [];
-    let pageUrl: string = `https://${SHOP}/admin/api/2024-01/orders.json?status=any&limit=250&created_at_min=${created_at_min}&created_at_max=${created_at_max}`;
+    const allOrders: any[] = [];
+    const params = new URLSearchParams({
+      status: 'any',
+      limit: '250',
+      created_at_min,
+      created_at_max,
+    });
+    let pageUrl: string | null = `https://${SHOP}/admin/api/2024-01/orders.json?${params}`;
 
     while (pageUrl) {
       const res = await fetch(pageUrl, {
         headers: {
           'X-Shopify-Access-Token': TOKEN,
-          'Content-Type': 'application/json',
         },
         cache: 'no-store',
       });
@@ -59,11 +64,11 @@ export async function GET(request: NextRequest) {
       }
 
       const { orders } = await res.json();
-      allOrders = [...allOrders, ...orders];
+      if (Array.isArray(orders)) allOrders.push(...orders);
 
       const linkHeader = res.headers.get('Link');
       const nextMatch = linkHeader?.match(/<([^>]+)>;\s*rel="next"/);
-      pageUrl = nextMatch ? nextMatch[1] : '';
+      pageUrl = nextMatch ? nextMatch[1] : null;
     }
 
     const orders = allOrders;
