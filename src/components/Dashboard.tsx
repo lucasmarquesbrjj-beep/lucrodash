@@ -59,6 +59,7 @@ export default function Dashboard({ taxas }: { taxas: any }) {
   const [mlNotConnected, setMlNotConnected] = useState(false)
   // [FIX PERMANENTE - não remover] mlAdsSpend = gasto real em Anúncios do ML (via /api/ml/ads)
   const [mlAdsSpend, setMlAdsSpend] = useState(0)
+  const [mlAdsAvailable, setMlAdsAvailable] = useState(false)
 
   const metaGoal = taxas.meta_mensal ?? 250000
 
@@ -135,9 +136,9 @@ export default function Dashboard({ taxas }: { taxas: any }) {
   }, [filter])
 
   useEffect(() => {
-    if (channel !== 'ml') { setMlData(null); setMlNotConnected(false); setMlAdsSpend(0); return }
+    if (channel !== 'ml') { setMlData(null); setMlNotConnected(false); setMlAdsSpend(0); setMlAdsAvailable(false); return }
     let cancelled = false
-    setMlNotConnected(false); setMlAdsSpend(0)
+    setMlNotConnected(false); setMlAdsSpend(0); setMlAdsAvailable(false)
     // [FIX PERMANENTE - não remover] chave ml2_ (v2) — ml_ tinha cache com dados sem filtro de data
     const mlKey = `hd_ml2_${filter}`
     try {
@@ -146,20 +147,25 @@ export default function Dashboard({ taxas }: { taxas: any }) {
       else { setMlData(null); setMlLoading(true) }
     } catch { setMlData(null); setMlLoading(true) }
 
-    // [FIX PERMANENTE - não remover] orders já inclui adsSpend/adsAvailable/cpa/roas
-    // Não chamar /api/ml/ads separadamente — evita request extra e duplicação
-    fetch(`/api/ml/orders?filter=${filter}`).then(r => r.json()).catch(() => null)
-      .then((ordersData) => {
-        if (cancelled) return
-        if (ordersData?.notConnected) { setMlNotConnected(true); setMlLoading(false); return }
-        if (ordersData && !ordersData.error) {
-          setMlData(ordersData); setMlLoading(false)
-          if (ordersData.adsAvailable && typeof ordersData.adsSpend === 'number') {
-            setMlAdsSpend(ordersData.adsSpend)
-          }
-          try { localStorage.setItem(mlKey, JSON.stringify(ordersData)) } catch {}
-        } else { setMlLoading(false) }
-      }).catch(() => { if (!cancelled) setMlLoading(false) })
+    // [FIX PERMANENTE - não remover] Promise.all garante que orders + ads chegam juntos
+    // setMlData + setMlAdsSpend + setMlLoading(false) rodam no mesmo callback
+    // → React 18 bate em UM re-render → lucro não pula entre estados intermediários
+    Promise.all([
+      fetch(`/api/ml/orders?filter=${filter}`).then(r => r.json()).catch(() => null),
+      fetch(`/api/ml/ads?filter=${filter}`).then(r => r.json()).catch(() => null),
+    ]).then(([ordersData, adsData]) => {
+      if (cancelled) return
+      if (ordersData?.notConnected) { setMlNotConnected(true); setMlLoading(false); return }
+      if (ordersData && !ordersData.error) {
+        const spend = typeof adsData?.spend === 'number' && !adsData?.error ? adsData.spend : 0
+        const adsOk = typeof adsData?.spend === 'number' && !adsData?.error
+        setMlData(ordersData)
+        setMlAdsSpend(spend)
+        setMlAdsAvailable(adsOk)
+        setMlLoading(false)
+        try { localStorage.setItem(mlKey, JSON.stringify(ordersData)) } catch {}
+      } else { setMlLoading(false) }
+    }).catch(() => { if (!cancelled) setMlLoading(false) })
     return () => { cancelled = true }
   }, [channel, filter])
 
@@ -204,6 +210,9 @@ export default function Dashboard({ taxas }: { taxas: any }) {
   const cpaColor = cpa === null ? '#94a3b8' : cpa < (d.ticketMedio || 0) ? '#34d399' : '#f87171'
   const roas = tMa > 0 ? fat / tMa : null
   const roasColor = roas === null ? '#94a3b8' : roas >= 3 ? '#34d399' : roas >= 1.5 ? '#fbbf24' : '#f87171'
+  // CPA e ROAS específicos do ML (calculados localmente com mlAdsSpend)
+  const mlCpa  = mlAdsAvailable && mlAdsSpend > 0 && pedidos > 0 ? mlAdsSpend / pedidos : null
+  const mlRoas = mlAdsAvailable && mlAdsSpend > 0 ? fat / mlAdsSpend : null
 
   // loading correto por canal: ML usa mlLoading, os outros usam o loading do Shopify+Meta
   const cardLoading = isML ? (mlLoading && !mlData) : loading
@@ -306,8 +315,8 @@ export default function Dashboard({ taxas }: { taxas: any }) {
             { label: 'Ticket médio',     color: '#fbbf24', ld: cardLoading, val: brl(d.ticketMedio || 0) },
             { label: 'Total custos',     color: '#f87171', ld: cardLoading, val: brl(totalCustos) },
             // CPA e ROAS só fazem sentido para Ecom (dependem de Meta Ads spend)
-            { label: 'CPA',  color: cpaColor,  valColor: cpaColor,  ld: cardLoading, val: isML ? (mlData?.adsAvailable ? (mlData?.cpa !== null ? brl(mlData.cpa) : '—') : 'N/A') : (cpa !== null ? brl(cpa) : 'Sem dados de ads'), sub: isML ? (mlData?.adsAvailable ? 'Ads ML / pedido' : 'Habilitar ads no ML') : 'Custo / pedido pago' },
-            { label: 'ROAS', color: roasColor, valColor: roasColor, ld: false,       val: isML ? (mlData?.adsAvailable ? (mlData?.roas !== null ? mlData.roas.toFixed(2) + 'x' : '—') : 'N/A') : (roas !== null ? roas.toFixed(2) + 'x' : '—'), sub: isML ? (mlData?.adsAvailable ? 'Fat. / gasto Ads ML' : 'Habilitar ads no ML') : 'Fat. / gasto Ads' },
+            { label: 'CPA',  color: cpaColor,  valColor: cpaColor,  ld: cardLoading, val: isML ? (mlAdsAvailable ? (mlCpa !== null ? brl(mlCpa) : '—') : 'N/A') : (cpa !== null ? brl(cpa) : 'Sem dados de ads'), sub: isML ? (mlAdsAvailable ? 'Ads ML / pedido' : 'Habilitar ads no ML') : 'Custo / pedido pago' },
+            { label: 'ROAS', color: roasColor, valColor: roasColor, ld: false,       val: isML ? (mlAdsAvailable ? (mlRoas !== null ? mlRoas.toFixed(2) + 'x' : '—') : 'N/A') : (roas !== null ? roas.toFixed(2) + 'x' : '—'), sub: isML ? (mlAdsAvailable ? 'Fat. / gasto Ads ML' : 'Habilitar ads no ML') : 'Fat. / gasto Ads' },
           ] as { label: string; color: string; valColor?: string; ld: boolean; val: string; sub?: string }[]).map((k, i) => (
             <div key={i} style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '14px 16px', position: 'relative', overflow: 'hidden' }}>
               <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg,${k.color},transparent)` }} />

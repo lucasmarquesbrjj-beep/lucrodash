@@ -23,7 +23,7 @@ function getMLLocal(): Date {
   return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Manaus' }));
 }
 
-function getDateRange(filter: string): { from: string; to: string; dateFrom: string; dateTo: string } {
+function getDateRange(filter: string): { from: string; to: string } {
   const b = getMLLocal();
   const Y = b.getFullYear(), Mo = b.getMonth(), D = b.getDate();
 
@@ -62,46 +62,12 @@ function getDateRange(filter: string): { from: string; to: string; dateFrom: str
     t = new Date(Y, Mo,  D, 23, 59, 59, 999);
   }
 
-  return {
-    from:     toMLDate(f),
-    to:       toMLDate(t),
-    dateFrom: toMLDate(f).slice(0, 10), // YYYY-MM-DD para ads API
-    dateTo:   toMLDate(t).slice(0, 10),
-  };
-}
-
-// Retorna { spend, available } — available=false quando endpoint falha
-async function fetchAdsSpend(token: string, sellerId: number, dateFrom: string, dateTo: string): Promise<{ spend: number; available: boolean }> {
-  try {
-    // product_id=PADS obrigatório + Api-Version: 1
-    const advRes = await fetch(
-      `https://api.mercadolibre.com/advertising/advertisers?product_id=PADS&user_id=${sellerId}`,
-      { headers: { Authorization: `Bearer ${token}`, 'Api-Version': '1' }, cache: 'no-store' }
-    );
-    if (!advRes.ok) return { spend: 0, available: false };
-    const advData = await advRes.json();
-    const advertiser = advData?.advertisers?.[0];
-    if (!advertiser) return { spend: 0, available: false };
-    const { advertiser_id: advertiserId, site_id: siteId } = advertiser;
-
-    // Api-Version: 2 + aggregation_type=DAILY; soma results[].cost
-    const statsRes = await fetch(
-      `https://api.mercadolibre.com/marketplace/advertising/${siteId}/advertisers/${advertiserId}/product_ads/campaigns/search` +
-      `?date_from=${dateFrom}&date_to=${dateTo}&metrics=cost&aggregation_type=DAILY`,
-      { headers: { Authorization: `Bearer ${token}`, 'Api-Version': '2' }, cache: 'no-store' }
-    );
-    if (!statsRes.ok) return { spend: 0, available: false };
-    const stats = await statsRes.json();
-    const spend: number = (stats?.results ?? []).reduce((s: number, d: any) => s + (d.cost ?? 0), 0);
-    return { spend, available: true };
-  } catch {
-    return { spend: 0, available: false };
-  }
+  return { from: toMLDate(f), to: toMLDate(t) };
 }
 
 export async function GET(request: NextRequest) {
   const filter = request.nextUrl.searchParams.get('filter') || 'today';
-  const { from, to, dateFrom, dateTo } = getDateRange(filter);
+  const { from, to } = getDateRange(filter);
 
   // Token do ML via Supabase
   const sbRes = await fetch(
@@ -121,15 +87,11 @@ export async function GET(request: NextRequest) {
   const me = await meRes.json();
   const sellerId: number = me.id;
 
-  // Busca pedidos e ads em paralelo
   const allOrders: any[] = [];
   let offset = 0;
   const limit = 50;
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), 50000);
-
-  // Ads spend em paralelo com a primeira página de pedidos
-  const adsPromise = fetchAdsSpend(token, sellerId, dateFrom, dateTo);
 
   try {
     while (true) {
@@ -178,19 +140,11 @@ export async function GET(request: NextRequest) {
     hourly[h] += o.total_amount || 0;
   });
 
-  const { spend: adsSpend, available: adsAvailable } = await adsPromise;
-  const cpa  = adsAvailable && adsSpend > 0 && pedidosPagos > 0 ? adsSpend / pedidosPagos : null;
-  const roas = adsAvailable && adsSpend > 0 ? faturamentoPago / adsSpend : null;
-
   return NextResponse.json({
     faturamentoPago, faturamentoBruto: faturamentoPago,
     pedidosPagos, pedidosGerados: pedidosPagos,
     ticketMedio,
     taxaMlTotal,
-    adsSpend,
-    adsAvailable, // false = falta scope advertising no app ML
-    cpa,          // null quando adsAvailable=false
-    roas,         // null quando adsAvailable=false
     hourly,
   });
 }
