@@ -110,10 +110,18 @@ function DashPage({ taxas }: { taxas: any }) {
   const [showCustom, setShowCustom] = useState(false)
   const [customStart, setCustomStart] = useState('')
   const [customEnd, setCustomEnd] = useState('')
-  const [data, setData] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [metaLoading, setMetaLoading] = useState(true)
-  const [metaSpend, setMetaSpend] = useState<number | null>(null)
+  const [data, setData] = useState<any>(() => {
+    try { const s = localStorage.getItem('hd_today'); return s ? JSON.parse(s) : null } catch { return null }
+  })
+  const [loading, setLoading] = useState<boolean>(() => {
+    try { return localStorage.getItem('hd_today') === null } catch { return true }
+  })
+  const [metaLoading, setMetaLoading] = useState<boolean>(() => {
+    try { return localStorage.getItem('hd_meta_today') === null } catch { return true }
+  })
+  const [metaSpend, setMetaSpend] = useState<number | null>(() => {
+    try { const s = localStorage.getItem('hd_meta_today'); return s !== null ? Number(s) : null } catch { return null }
+  })
   const [monthData, setMonthData] = useState<any>(null)
   const [products, setProducts] = useState<any[]>([])
   const [funnel, setFunnel] = useState<{ abandoned: number } | null>(null)
@@ -129,7 +137,7 @@ function DashPage({ taxas }: { taxas: any }) {
     // Stale-while-revalidate for orders
     const cacheKey = `hd_${filter}`
     try {
-      const stale = sessionStorage.getItem(cacheKey)
+      const stale = localStorage.getItem(cacheKey)
       if (stale) { setData(JSON.parse(stale)); setLoading(false) }
       else { setData(null); setLoading(true) }
     } catch { setData(null); setLoading(true) }
@@ -137,7 +145,7 @@ function DashPage({ taxas }: { taxas: any }) {
     // Stale-while-revalidate for meta spend
     const metaKey = `hd_meta_${filter}`
     try {
-      const staleMeta = sessionStorage.getItem(metaKey)
+      const staleMeta = localStorage.getItem(metaKey)
       if (staleMeta !== null) { setMetaSpend(Number(staleMeta)); setMetaLoading(false) }
       else { setMetaSpend(null); setMetaLoading(true) }
     } catch { setMetaSpend(null); setMetaLoading(true) }
@@ -147,7 +155,7 @@ function DashPage({ taxas }: { taxas: any }) {
       .then(d => {
         if (!cancelled && !d?.error) {
           setData(d); setLoading(false)
-          try { sessionStorage.setItem(cacheKey, JSON.stringify(d)) } catch {}
+          try { localStorage.setItem(cacheKey, JSON.stringify(d)) } catch {}
         }
       })
       .catch(() => { if (!cancelled) setLoading(false) })
@@ -156,7 +164,7 @@ function DashPage({ taxas }: { taxas: any }) {
       .then(d => {
         if (!cancelled && typeof d.spend === 'number') {
           setMetaSpend(d.spend); setMetaLoading(false)
-          try { sessionStorage.setItem(metaKey, String(d.spend)) } catch {}
+          try { localStorage.setItem(metaKey, String(d.spend)) } catch {}
         }
       })
       .catch(() => { if (!cancelled) setMetaLoading(false) })
@@ -175,7 +183,7 @@ function DashPage({ taxas }: { taxas: any }) {
     setMlNotConnected(false)
     const mlKey = `hd_ml_${filter}`
     try {
-      const stale = sessionStorage.getItem(mlKey)
+      const stale = localStorage.getItem(mlKey)
       if (stale) { setMlData(JSON.parse(stale)); setMlLoading(false) }
       else { setMlData(null); setMlLoading(true) }
     } catch { setMlData(null); setMlLoading(true) }
@@ -186,7 +194,7 @@ function DashPage({ taxas }: { taxas: any }) {
           if (d.notConnected) { setMlNotConnected(true); setMlLoading(false) }
           else if (!d.error) {
             setMlData(d); setMlLoading(false)
-            try { sessionStorage.setItem(mlKey, JSON.stringify(d)) } catch {}
+            try { localStorage.setItem(mlKey, JSON.stringify(d)) } catch {}
           } else setMlLoading(false)
         }
       })
@@ -250,6 +258,15 @@ function DashPage({ taxas }: { taxas: any }) {
   const proj = (monthFat / (new Date().getDate())) * new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()
   const maxH = Math.max(...hourly, 1)
   const nowH = new Date().getHours()
+  const isSlow = ['30d','7d','month','year','lastyear'].includes(filter)
+
+  const skSt: React.CSSProperties = {
+    background: 'linear-gradient(90deg,#1a1929 25%,#252436 50%,#1a1929 75%)',
+    backgroundSize: '400px 100%',
+    animation: 'shimmer 1.4s infinite linear',
+    borderRadius: 5,
+  }
+  const Sk = (w: string, h: number) => <div style={{ ...skSt, width: w, height: h }} />
 
   return (
     <div>
@@ -293,105 +310,19 @@ function DashPage({ taxas }: { taxas: any }) {
         ))}
       </div>
 
-      {(loading || (isML && mlLoading && !mlData)) && (() => {
-        const sh: React.CSSProperties = {
-          background: 'linear-gradient(90deg,#1a1929 25%,#252436 50%,#1a1929 75%)',
-          backgroundSize: '400px 100%',
-          animation: 'shimmer 1.4s infinite linear',
-          borderRadius: 6,
-        }
-        const card = (w: string, h: number) => <div style={{ ...sh, width: w, height: h }} />
-        const isSlow = ['30d','7d','month','year','lastyear'].includes(filter)
-        return (
-          <div>
-            {isSlow && (
-              <div style={{ marginBottom: 14, padding: '8px 14px', background: '#141320', border: '1px solid #1e1d2e', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ height: 4, flex: 1, background: '#1e1d2e', borderRadius: 2, overflow: 'hidden', position: 'relative' }}>
-                  <div style={{ position: 'absolute', top: 0, height: '100%', background: 'linear-gradient(90deg,#4338ca,#7c3aed)', borderRadius: 2, animation: 'ld-slide 1.6s ease-in-out infinite' }} />
-                </div>
-                <span style={{ fontSize: 11, color: '#475569', whiteSpace: 'nowrap' as any }}>
-                  {filter === 'year' || filter === 'lastyear' ? 'Carregando ano inteiro...' : 'Carregando pedidos...'}
-                </span>
-              </div>
-            )}
-            {/* KPI cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 14 }}>
-              {Array(7).fill(0).map((_, i) => (
-                <div key={i} style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '14px 16px' }}>
-                  {card('55%', 9)}<div style={{ height: 8 }} />{card('72%', 22)}<div style={{ height: 7 }} />{card('40%', 9)}
-                </div>
-              ))}
-            </div>
-            {/* Lucro + Pedidos */}
-            <div className="grid-lucro-pedidos" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-              {[Array(9).fill(0), Array(10).fill(0)].map((rows, ci) => (
-                <div key={ci} style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '16px 18px' }}>
-                  {card('40%', 9)}<div style={{ height: 14 }} />
-                  {rows.map((_, i) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #1a1929' }}>
-                      {card(`${40 + (i % 3) * 10}%`, 9)}{card('22%', 9)}
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-            {/* Métodos de pagamento */}
-            <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '16px 18px', marginBottom: 14 }}>
-              {card('35%', 9)}<div style={{ height: 14 }} />
-              <div style={{ ...sh, height: 10, borderRadius: 6, marginBottom: 18 }} />
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 12 }}>
-                {Array(3).fill(0).map((_, i) => (
-                  <div key={i} style={{ background: '#1a1929', border: '1px solid #1e1d2e', borderRadius: 12, padding: '12px 14px' }}>
-                    {card('60%', 9)}<div style={{ height: 10 }} />{card('100%', 4)}<div style={{ height: 10 }} />
-                    {Array(3).fill(0).map((__, j) => (
-                      <div key={j} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
-                        {card('45%', 9)}{card('20%', 9)}
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            </div>
-            {/* Funil */}
-            <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '16px 18px', marginBottom: 14 }}>
-              {card('30%', 9)}<div style={{ height: 16 }} />
-              {Array(2).fill(0).map((_, i) => (
-                <div key={i}>
-                  {i > 0 && <div style={{ height: 32 }} />}
-                  <div style={{ background: '#1a1929', border: '1px solid #2d2d3d', borderRadius: 10, padding: '12px 14px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-                      {card('38%', 13)}{card('18%', 18)}
-                    </div>
-                    {card('100%', 5)}
-                  </div>
-                </div>
-              ))}
-            </div>
-            {/* Horas + Meta */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 12, marginBottom: 14 }}>
-              <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: 18 }}>
-                {card('35%', 9)}<div style={{ height: 12 }} />
-                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 80 }}>
-                  {Array(24).fill(0).map((_, i) => {
-                    const h = [20,15,25,18,30,22,35,28,40,55,65,70,75,72,68,80,85,78,60,45,35,28,22,18][i] || 20
-                    return <div key={i} style={{ ...sh, flex: 1, height: `${h}%`, borderRadius: '2px 2px 0 0' }} />
-                  })}
-                </div>
-              </div>
-              <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: 18 }}>
-                {card('38%', 9)}<div style={{ height: 12 }} />
-                {card('55%', 22)}<div style={{ height: 6 }} />{card('42%', 10)}<div style={{ height: 12 }} />
-                {card('100%', 6)}<div style={{ height: 12 }} />
-                {Array(3).fill(0).map((_, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0' }}>
-                    {card('45%', 9)}{card('25%', 9)}
-                  </div>
-                ))}
-              </div>
-            </div>
+      {/* Slow query progress bar */}
+      {loading && isSlow && (
+        <div style={{ marginBottom: 14, padding: '8px 14px', background: '#141320', border: '1px solid #1e1d2e', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ height: 4, flex: 1, background: '#1e1d2e', borderRadius: 2, overflow: 'hidden', position: 'relative' }}>
+            <div style={{ position: 'absolute', top: 0, height: '100%', background: 'linear-gradient(90deg,#4338ca,#7c3aed)', borderRadius: 2, animation: 'ld-slide 1.6s ease-in-out infinite' }} />
           </div>
-        )
-      })()}
+          <span style={{ fontSize: 11, color: '#475569', whiteSpace: 'nowrap' as any }}>
+            {filter === 'year' || filter === 'lastyear' ? 'Carregando ano inteiro...' : 'Carregando pedidos...'}
+          </span>
+        </div>
+      )}
+
+      {/* ML not connected */}
       {isML && mlNotConnected && (
         <div style={{ padding: '32px 20px', background: '#141320', border: '1px solid #292131', borderRadius: 14, marginBottom: 14, textAlign: 'center' as any }}>
           <div style={{ fontSize: 28, marginBottom: 10 }}>🟡</div>
@@ -399,71 +330,97 @@ function DashPage({ taxas }: { taxas: any }) {
           <div style={{ fontSize: 12, color: '#64748b' }}>Conecte sua conta em <strong style={{ color: '#a5b4fc' }}>Integrações</strong> para ver os dados reais do ML.</div>
         </div>
       )}
-      {!loading && !(isML && mlLoading && !mlData) && !mlNotConnected && (
-        <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 14 }}>
-            {[
-              { label: 'Faturamento pago', val: brl(fat), color: '#6366f1', sub: `Bruto: ${brl(Math.round((d.faturamentoBruto || 0) * m))}` },
-              { label: 'Lucro líquido', val: brl(lucro), color: lucro > 0 ? '#34d399' : '#f87171', sub: `Margem: ${margem.toFixed(1)}%` },
-              { label: 'Pedidos pagos', val: num(pedidos), color: '#a78bfa', sub: `de ${num(Math.round((d.pedidosGerados || 0) * m))} gerados` },
-              { label: 'Ticket médio', val: brl(d.ticketMedio || 0), color: '#fbbf24' },
-              { label: 'Total custos', val: brl(totalCustos), color: '#f87171' },
-              { label: 'CPA', val: cpa !== null ? brl(cpa) : 'Sem dados de ads', color: cpaColor, valColor: cpaColor, sub: 'Custo / pedido pago' },
-              { label: 'ROAS', val: roas !== null ? roas.toFixed(2) + 'x' : '—', color: roasColor, valColor: roasColor, sub: 'Fat. / gasto Ads' },
-            ].map((k, i) => (
-              <div key={i} style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '14px 16px', position: 'relative', overflow: 'hidden' }}>
-                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg,${k.color},transparent)` }} />
-                <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' as any, letterSpacing: '0.4px', marginBottom: 6 }}>{k.label}</div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: (k as any).valColor || '#f1f5f9' }}>{k.val}</div>
-                {k.sub && <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>{k.sub}</div>}
-              </div>
-            ))}
+
+      {!mlNotConnected && (<>
+
+        {/* KPI cards — always rendered, inline skeletons by data source */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 14 }}>
+          {([
+            { label: 'Faturamento pago', color: '#6366f1', ld: loading, val: brl(fat), sub: `Bruto: ${brl(Math.round((d.faturamentoBruto || 0) * m))}` },
+            { label: 'Lucro líquido',    color: lucro > 0 ? '#34d399' : '#f87171', valColor: lucro > 0 ? '#34d399' : '#f87171', ld: loading || metaLoading, val: brl(lucro), sub: `Margem: ${margem.toFixed(1)}%` },
+            { label: 'Pedidos pagos',    color: '#a78bfa', ld: loading, val: num(pedidos), sub: `de ${num(Math.round((d.pedidosGerados || 0) * m))} gerados` },
+            { label: 'Ticket médio',     color: '#fbbf24', ld: loading, val: brl(d.ticketMedio || 0) },
+            { label: 'Total custos',     color: '#f87171', ld: loading || metaLoading, val: brl(totalCustos) },
+            { label: 'CPA',              color: cpaColor, valColor: cpaColor, ld: loading || metaLoading, val: cpa !== null ? brl(cpa) : 'Sem dados de ads', sub: 'Custo / pedido pago' },
+            { label: 'ROAS',             color: roasColor, valColor: roasColor, ld: metaLoading, val: roas !== null ? roas.toFixed(2) + 'x' : '—', sub: 'Fat. / gasto Ads' },
+          ] as { label: string; color: string; valColor?: string; ld: boolean; val: string; sub?: string }[]).map((k, i) => (
+            <div key={i} style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '14px 16px', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg,${k.color},transparent)` }} />
+              <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' as any, letterSpacing: '0.4px', marginBottom: 6 }}>{k.label}</div>
+              {k.ld ? (
+                <>{Sk('70%', 22)}<div style={{ height: 5 }} />{Sk('45%', 9)}</>
+              ) : (
+                <>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: k.valColor || '#f1f5f9' }}>{k.val}</div>
+                  {k.sub && <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>{k.sub}</div>}
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Composição do lucro + Pedidos */}
+        <div className="grid-lucro-pedidos" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+          <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '16px 18px' }}>
+            <div style={{ fontSize: 10, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as any, letterSpacing: '0.5px', marginBottom: 12 }}>Composição do lucro</div>
+            {(loading || metaLoading) ? (
+              Array(9).fill(0).map((_, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #1a1929' }}>
+                  {Sk(`${40 + (i % 3) * 10}%`, 9)}{Sk('22%', 9)}
+                </div>
+              ))
+            ) : (
+              <>
+                {([
+                  { title: 'Receita', rows: [{ label: 'Faturamento pago', val: fat, pos: true }] },
+                  { title: 'Taxas de Plataforma', rows: [
+                    { label: `Checkout (${taxas.checkout_pct || 0}%)`, val: tCo },
+                    { label: `Gateway (${taxas.gateway_pct || 0}%)`, val: tGw },
+                  ]},
+                  { title: 'Impostos', rows: [
+                    { label: `Faturamento (${taxas.imposto_pct || 0}%)`, val: tIm },
+                    { label: `Meta Ads (${taxas.imposto_meta_pct || 0}%)`, val: tMi },
+                  ]},
+                  { title: 'Custos Operacionais', rows: [
+                    { label: `Custo produto (${pedidos}x)`, val: tPr },
+                    { label: `Frete (${pedidos}x)`, val: tFr },
+                  ]},
+                  { title: 'Publicidade', rows: [
+                    { label: 'Meta Ads', val: tMa },
+                    { label: 'Google Ads', val: tGo },
+                  ]},
+                ] as { title: string; rows: { label: string; val: number; pos?: boolean }[] }[]).map((sec, si) => (
+                  <div key={si} style={{ marginBottom: 10 }}>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: '#475569', textTransform: 'uppercase' as any, letterSpacing: '0.6px', paddingBottom: 5, marginBottom: 2, borderBottom: '2px solid #2d2d3d' }}>{sec.title}</div>
+                    {sec.rows.map((r, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 12 }}>
+                        <span style={{ color: '#94a3b8' }}>{r.label}</span>
+                        <span style={{ fontWeight: 600, color: r.pos ? '#34d399' : '#f87171', marginLeft: 16 }}>{r.pos ? '+' : '-'} {brl(Math.abs(r.val))}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', marginTop: 4, borderTop: '2px solid #2d2d3d' }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9' }}>Lucro líquido</span>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: lucro > 0 ? '#34d399' : '#f87171' }}>{brl(lucro)}</div>
+                    <div style={{ fontSize: 11, color: '#64748b' }}>Margem: {margem.toFixed(1)}%</div>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
-          <div className="grid-lucro-pedidos" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-            <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '16px 18px' }}>
-              <div style={{ fontSize: 10, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as any, letterSpacing: '0.5px', marginBottom: 12 }}>Composição do lucro</div>
-              {([
-                { title: 'Receita', rows: [{ label: 'Faturamento pago', val: fat, pos: true }] },
-                { title: 'Taxas de Plataforma', rows: [
-                  { label: `Checkout (${taxas.checkout_pct || 0}%)`, val: tCo },
-                  { label: `Gateway (${taxas.gateway_pct || 0}%)`, val: tGw },
-                ]},
-                { title: 'Impostos', rows: [
-                  { label: `Faturamento (${taxas.imposto_pct || 0}%)`, val: tIm },
-                  { label: `Meta Ads (${taxas.imposto_meta_pct || 0}%)`, val: tMi },
-                ]},
-                { title: 'Custos Operacionais', rows: [
-                  { label: `Custo produto (${pedidos}x)`, val: tPr },
-                  { label: `Frete (${pedidos}x)`, val: tFr },
-                ]},
-                { title: 'Publicidade', rows: [
-                  { label: 'Meta Ads', val: tMa },
-                  { label: 'Google Ads', val: tGo },
-                ]},
-              ] as { title: string; rows: { label: string; val: number; pos?: boolean }[] }[]).map((sec, si) => (
-                <div key={si} style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 9, fontWeight: 700, color: '#475569', textTransform: 'uppercase' as any, letterSpacing: '0.6px', paddingBottom: 5, marginBottom: 2, borderBottom: '2px solid #2d2d3d' }}>{sec.title}</div>
-                  {sec.rows.map((r, i) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 12 }}>
-                      <span style={{ color: '#94a3b8' }}>{r.label}</span>
-                      <span style={{ fontWeight: 600, color: r.pos ? '#34d399' : '#f87171', marginLeft: 16 }}>{r.pos ? '+' : '-'} {brl(Math.abs(r.val))}</span>
-                    </div>
-                  ))}
+          <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '16px 18px' }}>
+            <div style={{ fontSize: 10, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as any, letterSpacing: '0.5px', marginBottom: 12 }}>Pedidos</div>
+            {loading ? (
+              Array(10).fill(0).map((_, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #1a1929' }}>
+                  {Sk(`${40 + (i % 3) * 10}%`, 9)}{Sk('22%', 9)}
                 </div>
-              ))}
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', marginTop: 4, borderTop: '2px solid #2d2d3d' }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9' }}>Lucro líquido</span>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: lucro > 0 ? '#34d399' : '#f87171' }}>{brl(lucro)}</div>
-                  <div style={{ fontSize: 11, color: '#64748b' }}>Margem: {margem.toFixed(1)}%</div>
-                </div>
-              </div>
-            </div>
-
-            <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '16px 18px' }}>
-              <div style={{ fontSize: 10, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as any, letterSpacing: '0.5px', marginBottom: 12 }}>Pedidos</div>
-              {[
+              ))
+            ) : (
+              [
                 { label: 'Gerados', val: num(Math.round((d.pedidosGerados || 0) * m)) },
                 { label: 'Pagos', val: num(pedidos), hi: true },
                 { label: 'Pendentes', val: num(Math.round((d.pedidosPendentes || 0) * m)) },
@@ -479,211 +436,273 @@ function DashPage({ taxas }: { taxas: any }) {
                   <span style={{ color: '#94a3b8' }}>{r.label}</span>
                   <span style={{ fontWeight: 600, color: (r as any).red ? '#fca5a5' : r.hi ? '#a5b4fc' : '#e2e8f0', marginLeft: 16 }}>{r.val}</span>
                 </div>
-              ))}
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Métodos de pagamento */}
+        <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '16px 18px', marginBottom: 14 }}>
+          <div style={{ fontSize: 10, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as any, letterSpacing: '0.5px', marginBottom: 14 }}>Métodos de Pagamento</div>
+          {loading ? (
+            <>
+              <div style={{ ...skSt, height: 10, borderRadius: 6, marginBottom: 18, width: '100%' }} />
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 12 }}>
+                {Array(3).fill(0).map((_, i) => (
+                  <div key={i} style={{ background: '#1a1929', border: '1px solid #1e1d2e', borderRadius: 12, padding: '12px 14px' }}>
+                    {Sk('60%', 9)}<div style={{ height: 10 }} />{Sk('100%', 4)}<div style={{ height: 10 }} />
+                    {Array(3).fill(0).map((__, j) => (
+                      <div key={j} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
+                        {Sk('45%', 9)}{Sk('20%', 9)}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : totalAprovados === 0 ? (
+            <div style={{ fontSize: 12, color: '#475569' }}>Sem pedidos pagos no período.</div>
+          ) : (
+            <>
+              <div style={{ display: 'flex', height: 10, borderRadius: 6, overflow: 'hidden', marginBottom: 18, gap: 2 }}>
+                {ccPct  > 0 && <div style={{ width: `${ccPct}%`,  background: '#7c3aed', borderRadius: '4px 0 0 4px' }} title={`Cartão ${ccPct.toFixed(1)}%`} />}
+                {pixPct > 0 && <div style={{ width: `${pixPct}%`, background: '#34d399' }} title={`PIX ${pixPct.toFixed(1)}%`} />}
+                {bolPct > 0 && <div style={{ width: `${bolPct}%`, background: '#fbbf24', borderRadius: '0 4px 4px 0' }} title={`Boleto ${bolPct.toFixed(1)}%`} />}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 12 }}>
+                {([
+                  { label: 'Cartão', aprov: ccAprov,  pend: ccPend,  conv: ccConv,  pct: ccPct,  color: '#7c3aed', bg: 'rgba(124,58,237,0.12)', dot: '#a78bfa' },
+                  { label: 'PIX',    aprov: pixAprov, pend: pixPend, conv: pixConv, pct: pixPct, color: '#34d399', bg: 'rgba(52,211,153,0.10)', dot: '#34d399' },
+                  { label: 'Boleto', aprov: bolAprov, pend: bolPend, conv: bolConv, pct: bolPct, color: '#fbbf24', bg: 'rgba(251,191,36,0.10)', dot: '#fbbf24' },
+                ]).map(pm => (
+                  <div key={pm.label} style={{ background: pm.bg, border: `1px solid ${pm.color}22`, borderRadius: 12, padding: '12px 14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: pm.dot, flexShrink: 0 }} />
+                      <span style={{ fontSize: 12, fontWeight: 700, color: '#e2e8f0' }}>{pm.label}</span>
+                      <span style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 700, color: pm.dot }}>{pm.pct.toFixed(1)}%</span>
+                    </div>
+                    <div style={{ height: 4, background: '#1e1d2e', borderRadius: 2, overflow: 'hidden', marginBottom: 10 }}>
+                      <div style={{ height: '100%', width: `${pm.pct}%`, background: pm.color, borderRadius: 2 }} />
+                    </div>
+                    {[
+                      { label: 'Aprovados', val: pm.aprov, color: pm.dot },
+                      { label: 'Pendentes', val: pm.pend,  color: '#64748b' },
+                      { label: 'Conversão', val: `${pm.conv.toFixed(1)}%`, color: pm.conv >= 70 ? '#34d399' : pm.conv >= 40 ? '#fbbf24' : '#f87171' },
+                    ].map(r => (
+                      <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '3px 0' }}>
+                        <span style={{ color: '#94a3b8' }}>{r.label}</span>
+                        <span style={{ fontWeight: 600, color: r.color }}>{typeof r.val === 'number' ? num(r.val) : r.val}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Funil */}
+        {(() => {
+          const abandoned    = funnel?.abandoned ?? 0
+          const gerados      = Math.round((d.pedidosGerados || 0) * m)
+          const pagos        = Math.round((d.pedidosPagos   || 0) * m)
+          const hasAbandoned = funnel !== null && abandoned > 0
+          const iniciados    = hasAbandoned ? abandoned + gerados : gerados
+          const steps = hasAbandoned
+            ? [
+                { label: 'Checkouts iniciados', sub: 'carrinhos abandonados + pedidos gerados', val: iniciados, color: '#6366f1', bg: 'rgba(99,102,241,0.18)' },
+                { label: 'Pedidos gerados',     sub: 'checkout finalizado',                     val: gerados,   color: '#a78bfa', bg: 'rgba(167,139,250,0.15)' },
+                { label: 'Pedidos pagos',       sub: 'pagamento confirmado',                    val: pagos,     color: '#34d399', bg: 'rgba(52,211,153,0.13)' },
+              ]
+            : [
+                { label: 'Pedidos gerados', sub: 'checkout finalizado',  val: gerados, color: '#a78bfa', bg: 'rgba(167,139,250,0.15)' },
+                { label: 'Pedidos pagos',   sub: 'pagamento confirmado', val: pagos,   color: '#34d399', bg: 'rgba(52,211,153,0.13)' },
+              ]
+          const maxVal   = steps[0]?.val || 1
+          const taxaConv = hasAbandoned
+            ? (iniciados > 0 ? (pagos / iniciados) * 100 : 0)
+            : (gerados   > 0 ? (pagos / gerados)   * 100 : 0)
+          return (
+            <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '16px 18px', marginBottom: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+                <div style={{ fontSize: 10, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as any, letterSpacing: '0.5px' }}>Funil de Vendas</div>
+                {(loading || funnel === null) && <span style={{ fontSize: 11, color: '#475569' }}>Carregando...</span>}
+              </div>
+              {loading ? (
+                Array(2).fill(0).map((_, i) => (
+                  <div key={i}>
+                    {i > 0 && <div style={{ height: 32 }} />}
+                    <div style={{ background: '#1a1929', border: '1px solid #2d2d3d', borderRadius: 10, padding: '12px 14px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+                        {Sk('38%', 13)}{Sk('18%', 18)}
+                      </div>
+                      {Sk('100%', 5)}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <>
+                  {funnel !== null && !hasAbandoned && (
+                    <div style={{ fontSize: 11, color: '#64748b', marginBottom: 14, padding: '6px 10px', background: '#1a1929', borderRadius: 7, borderLeft: '3px solid #334155' }}>
+                      Dados de carrinho abandonado indisponíveis — exibindo pedidos gerados → pagos
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column' as any, gap: 0 }}>
+                    {steps.map((step, i) => {
+                      const barPct  = (step.val / maxVal) * 100
+                      const prevVal = i > 0 ? steps[i - 1].val : null
+                      const convPct = prevVal !== null && prevVal > 0 ? (step.val / prevVal) * 100 : null
+                      const sairam  = prevVal !== null ? prevVal - step.val : 0
+                      const dropPct = convPct !== null ? 100 - convPct : 0
+                      return (
+                        <div key={i}>
+                          {i > 0 && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0 7px 12px' }}>
+                              <div style={{ width: 1, height: 18, background: '#2d2d3d', marginLeft: 8, flexShrink: 0 }} />
+                              <span style={{ fontSize: 11, color: dropPct > 50 ? '#f87171' : dropPct > 20 ? '#fbbf24' : '#34d399' }}>
+                                ↓ {convPct !== null ? convPct.toFixed(1) : '0'}% converteram
+                              </span>
+                              <span style={{ fontSize: 11, color: '#64748b' }}>·</span>
+                              <span style={{ fontSize: 11, color: '#f87171' }}>{num(sairam)} saíram</span>
+                            </div>
+                          )}
+                          <div style={{ background: step.bg, border: `1px solid ${step.color}30`, borderRadius: 10, padding: '12px 14px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                              <div>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0' }}>{step.label}</div>
+                                <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>{step.sub}</div>
+                              </div>
+                              <div style={{ textAlign: 'right' as any }}>
+                                <div style={{ fontSize: 20, fontWeight: 700, color: step.color }}>{num(step.val)}</div>
+                                <div style={{ fontSize: 10, color: '#64748b' }}>
+                                  {convPct !== null ? `${convPct.toFixed(1)}% da etapa anterior` : 'topo do funil'}
+                                </div>
+                              </div>
+                            </div>
+                            <div style={{ height: 5, background: '#1e1d2e', borderRadius: 3, overflow: 'hidden' }}>
+                              <div style={{ height: '100%', width: `${barPct}%`, background: step.color, borderRadius: 3, transition: 'width 0.4s ease' }} />
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  {hasAbandoned && (
+                    <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #1e1d2e', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <span style={{ fontSize: 12, color: '#94a3b8' }}>Taxa de conversão</span>
+                        <div style={{ fontSize: 10, color: '#475569', marginTop: 2 }}>pedidos pagos / checkouts iniciados</div>
+                      </div>
+                      <div style={{ fontSize: 18, fontWeight: 700, color: taxaConv >= 5 ? '#34d399' : taxaConv >= 2 ? '#fbbf24' : '#f87171' }}>
+                        {taxaConv.toFixed(1)}%
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )
+        })()}
+
+        {/* Vendas por hora + Meta do mês */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 12, marginBottom: 14 }}>
+          <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: 18 }}>
+            <div style={{ fontSize: 10, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as any, letterSpacing: '0.5px', marginBottom: 12 }}>Vendas por hora</div>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 80 }}>
+              {loading
+                ? Array(24).fill(0).map((_, i) => {
+                    const h = [20,15,25,18,30,22,35,28,40,55,65,70,75,72,68,80,85,78,60,45,35,28,22,18][i] || 20
+                    return <div key={i} style={{ ...skSt, flex: 1, height: `${h}%`, borderRadius: '2px 2px 0 0' }} />
+                  })
+                : hourly.map((v, i) => (
+                    <div key={i} title={`${i}h: ${brl(v)}`}
+                      style={{ flex: 1, height: `${Math.max((v / maxH) * 100, 3)}%`, background: i === nowH ? '#6366f1' : `rgba(99,102,241,${0.15 + (v / maxH) * 0.5})`, borderRadius: '2px 2px 0 0' }} />
+                  ))
+              }
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 10, color: '#475569' }}>
+              <span>00h</span><span>12h</span><span>23h</span>
             </div>
           </div>
-
-          <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '16px 18px', marginBottom: 14 }}>
-            <div style={{ fontSize: 10, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as any, letterSpacing: '0.5px', marginBottom: 14 }}>Métodos de Pagamento</div>
-            {totalAprovados === 0 ? (
-              <div style={{ fontSize: 12, color: '#475569' }}>Sem pedidos pagos no período.</div>
+          <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: 18 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+              <span style={{ fontSize: 10, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as any, letterSpacing: '0.5px' }}>Meta do mês</span>
+              {!monthData ? Sk('20%', 14) : <span style={{ fontSize: 12, color: '#a5b4fc', fontWeight: 600 }}>{pct.toFixed(1)}%</span>}
+            </div>
+            {!monthData ? (
+              <>{Sk('55%', 22)}<div style={{ height: 6 }} />{Sk('42%', 10)}<div style={{ height: 12 }} />{Sk('100%', 6)}<div style={{ height: 12 }} />{Array(2).fill(0).map((_, i) => <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0' }}>{Sk('45%', 9)}{Sk('25%', 9)}</div>)}</>
             ) : (
               <>
-                <div style={{ display: 'flex', height: 10, borderRadius: 6, overflow: 'hidden', marginBottom: 18, gap: 2 }}>
-                  {ccPct  > 0 && <div style={{ width: `${ccPct}%`,  background: '#7c3aed', borderRadius: '4px 0 0 4px' }} title={`Cartão ${ccPct.toFixed(1)}%`} />}
-                  {pixPct > 0 && <div style={{ width: `${pixPct}%`, background: '#34d399' }} title={`PIX ${pixPct.toFixed(1)}%`} />}
-                  {bolPct > 0 && <div style={{ width: `${bolPct}%`, background: '#fbbf24', borderRadius: '0 4px 4px 0' }} title={`Boleto ${bolPct.toFixed(1)}%`} />}
+                <div style={{ fontSize: 20, fontWeight: 700, color: '#f1f5f9' }}>{brl(monthFat)}</div>
+                <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>de {brl(metaGoal)}</div>
+                <div style={{ height: 6, background: '#1e1d2e', borderRadius: 3, overflow: 'hidden', marginBottom: 10 }}>
+                  <div style={{ height: '100%', width: `${pct}%`, background: 'linear-gradient(90deg,#4338ca,#7c3aed)', borderRadius: 3 }} />
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 12 }}>
-                  {([
-                    { label: 'Cartão', aprov: ccAprov,  pend: ccPend,  conv: ccConv,  pct: ccPct,  color: '#7c3aed', bg: 'rgba(124,58,237,0.12)', dot: '#a78bfa' },
-                    { label: 'PIX',    aprov: pixAprov, pend: pixPend, conv: pixConv, pct: pixPct, color: '#34d399', bg: 'rgba(52,211,153,0.10)', dot: '#34d399' },
-                    { label: 'Boleto', aprov: bolAprov, pend: bolPend, conv: bolConv, pct: bolPct, color: '#fbbf24', bg: 'rgba(251,191,36,0.10)', dot: '#fbbf24' },
-                  ]).map(pm => (
-                    <div key={pm.label} style={{ background: pm.bg, border: `1px solid ${pm.color}22`, borderRadius: 12, padding: '12px 14px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10 }}>
-                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: pm.dot, flexShrink: 0 }} />
-                        <span style={{ fontSize: 12, fontWeight: 700, color: '#e2e8f0' }}>{pm.label}</span>
-                        <span style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 700, color: pm.dot }}>{pm.pct.toFixed(1)}%</span>
-                      </div>
-                      <div style={{ height: 4, background: '#1e1d2e', borderRadius: 2, overflow: 'hidden', marginBottom: 10 }}>
-                        <div style={{ height: '100%', width: `${pm.pct}%`, background: pm.color, borderRadius: 2 }} />
-                      </div>
-                      {[
-                        { label: 'Aprovados',  val: pm.aprov, color: pm.dot },
-                        { label: 'Pendentes',  val: pm.pend,  color: '#64748b' },
-                        { label: 'Conversão',  val: `${pm.conv.toFixed(1)}%`, color: pm.conv >= 70 ? '#34d399' : pm.conv >= 40 ? '#fbbf24' : '#f87171' },
-                      ].map(r => (
-                        <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '3px 0' }}>
-                          <span style={{ color: '#94a3b8' }}>{r.label}</span>
-                          <span style={{ fontWeight: 600, color: r.color }}>{typeof r.val === 'number' ? num(r.val) : r.val}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ))}
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <div><div style={{ fontSize: 11, color: '#64748b' }}>Projeção</div><div style={{ fontSize: 13, fontWeight: 600, color: proj >= metaGoal ? '#34d399' : '#fbbf24' }}>{brl(proj)}</div></div>
+                  <div style={{ textAlign: 'right' }}><div style={{ fontSize: 11, color: '#64748b' }}>Faltam</div><div style={{ fontSize: 13, fontWeight: 600, color: '#94a3b8' }}>{brl(Math.max(metaGoal - monthFat, 0))}</div></div>
                 </div>
               </>
             )}
           </div>
+        </div>
 
-          {(() => {
-            const abandoned    = funnel?.abandoned ?? 0
-            const gerados      = Math.round((d.pedidosGerados || 0) * m)
-            const pagos        = Math.round((d.pedidosPagos   || 0) * m)
-            // Only show 3-step funnel when we have real abandoned cart data (> 0)
-            const hasAbandoned = funnel !== null && abandoned > 0
-            const iniciados    = hasAbandoned ? abandoned + gerados : gerados
-            const steps = hasAbandoned
-              ? [
-                  { label: 'Checkouts iniciados', sub: 'carrinhos abandonados + pedidos gerados', val: iniciados, color: '#6366f1', bg: 'rgba(99,102,241,0.18)' },
-                  { label: 'Pedidos gerados',     sub: 'checkout finalizado',                     val: gerados,   color: '#a78bfa', bg: 'rgba(167,139,250,0.15)' },
-                  { label: 'Pedidos pagos',       sub: 'pagamento confirmado',                    val: pagos,     color: '#34d399', bg: 'rgba(52,211,153,0.13)' },
-                ]
-              : [
-                  { label: 'Pedidos gerados', sub: 'checkout finalizado',    val: gerados, color: '#a78bfa', bg: 'rgba(167,139,250,0.15)' },
-                  { label: 'Pedidos pagos',   sub: 'pagamento confirmado',   val: pagos,   color: '#34d399', bg: 'rgba(52,211,153,0.13)' },
-                ]
-            const maxVal   = (steps[0]?.val) || 1
-            const taxaConv = hasAbandoned
-              ? (iniciados > 0 ? (pagos / iniciados) * 100 : 0)
-              : (gerados   > 0 ? (pagos / gerados)   * 100 : 0)
-            return (
-              <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '16px 18px', marginBottom: 14 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: hasAbandoned || funnel === null ? 18 : 10 }}>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as any, letterSpacing: '0.5px' }}>Funil de Vendas</div>
-                  {funnel === null && <span style={{ fontSize: 11, color: '#475569' }}>Carregando...</span>}
-                </div>
-                {funnel !== null && !hasAbandoned && (
-                  <div style={{ fontSize: 11, color: '#64748b', marginBottom: 14, padding: '6px 10px', background: '#1a1929', borderRadius: 7, borderLeft: '3px solid #334155' }}>
-                    Dados de carrinho abandonado indisponíveis — exibindo pedidos gerados → pagos
-                  </div>
-                )}
-                <div style={{ display: 'flex', flexDirection: 'column' as any, gap: 0 }}>
-                  {steps.map((step, i) => {
-                    const barPct  = (step.val / maxVal) * 100
-                    const prevVal = i > 0 ? steps[i - 1].val : null
-                    const convPct = prevVal !== null && prevVal > 0 ? (step.val / prevVal) * 100 : null
-                    const sairam  = prevVal !== null ? prevVal - step.val : 0
-                    const dropPct = convPct !== null ? 100 - convPct : 0
-                    return (
-                      <div key={i}>
-                        {i > 0 && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0 7px 12px' }}>
-                            <div style={{ width: 1, height: 18, background: '#2d2d3d', marginLeft: 8, flexShrink: 0 }} />
-                            <span style={{ fontSize: 11, color: dropPct > 50 ? '#f87171' : dropPct > 20 ? '#fbbf24' : '#34d399' }}>
-                              ↓ {convPct !== null ? convPct.toFixed(1) : '0'}% converteram
-                            </span>
-                            <span style={{ fontSize: 11, color: '#64748b' }}>·</span>
-                            <span style={{ fontSize: 11, color: '#f87171' }}>{num(sairam)} saíram</span>
-                          </div>
-                        )}
-                        <div style={{ background: step.bg, border: `1px solid ${step.color}30`, borderRadius: 10, padding: '12px 14px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                            <div>
-                              <div style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0' }}>{step.label}</div>
-                              <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>{step.sub}</div>
-                            </div>
-                            <div style={{ textAlign: 'right' as any }}>
-                              <div style={{ fontSize: 20, fontWeight: 700, color: step.color }}>{num(step.val)}</div>
-                              <div style={{ fontSize: 10, color: '#64748b' }}>
-                                {convPct !== null ? `${convPct.toFixed(1)}% da etapa anterior` : 'topo do funil'}
-                              </div>
-                            </div>
-                          </div>
-                          <div style={{ height: 5, background: '#1e1d2e', borderRadius: 3, overflow: 'hidden' }}>
-                            <div style={{ height: '100%', width: `${barPct}%`, background: step.color, borderRadius: 3, transition: 'width 0.4s ease' }} />
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-                {hasAbandoned && (
-                  <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #1e1d2e', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <span style={{ fontSize: 12, color: '#94a3b8' }}>Taxa de conversão</span>
-                      <div style={{ fontSize: 10, color: '#475569', marginTop: 2 }}>pedidos pagos / checkouts iniciados</div>
-                    </div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: taxaConv >= 5 ? '#34d399' : taxaConv >= 2 ? '#fbbf24' : '#f87171' }}>
-                      {taxaConv.toFixed(1)}%
-                    </div>
-                  </div>
-                )}
-              </div>
-            )
-          })()}
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 12, marginBottom: 14 }}>
-            <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: 18 }}>
-              <div style={{ fontSize: 10, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as any, letterSpacing: '0.5px', marginBottom: 12 }}>Vendas por hora</div>
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 80 }}>
-                {hourly.map((v, i) => (
-                  <div key={i} title={`${i}h: ${brl(v)}`}
-                    style={{ flex: 1, height: `${Math.max((v / maxH) * 100, 3)}%`, background: i === nowH ? '#6366f1' : `rgba(99,102,241,${0.15 + (v / maxH) * 0.5})`, borderRadius: '2px 2px 0 0' }} />
-                ))}
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 10, color: '#475569' }}>
-                <span>00h</span><span>12h</span><span>23h</span>
-              </div>
-            </div>
-            <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: 18 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-                <span style={{ fontSize: 10, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as any, letterSpacing: '0.5px' }}>Meta do mês</span>
-                <span style={{ fontSize: 12, color: '#a5b4fc', fontWeight: 600 }}>{pct.toFixed(1)}%</span>
-              </div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: '#f1f5f9' }}>{brl(monthFat)}</div>
-              <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>de {brl(metaGoal)}</div>
-              <div style={{ height: 6, background: '#1e1d2e', borderRadius: 3, overflow: 'hidden', marginBottom: 10 }}>
-                <div style={{ height: '100%', width: `${pct}%`, background: 'linear-gradient(90deg,#4338ca,#7c3aed)', borderRadius: 3 }} />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <div><div style={{ fontSize: 11, color: '#64748b' }}>Projeção</div><div style={{ fontSize: 13, fontWeight: 600, color: proj >= metaGoal ? '#34d399' : '#fbbf24' }}>{brl(proj)}</div></div>
-                <div style={{ textAlign: 'right' }}><div style={{ fontSize: 11, color: '#64748b' }}>Faltam</div><div style={{ fontSize: 13, fontWeight: 600, color: '#94a3b8' }}>{brl(Math.max(metaGoal - monthFat, 0))}</div></div>
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 12 }}>
-            <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: 18 }}>
-              <div style={{ fontSize: 10, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as any, letterSpacing: '0.5px', marginBottom: 12 }}>Vendas por estado</div>
-              {states.length === 0 && <div style={{ fontSize: 12, color: '#475569' }}>Sem dados</div>}
-              {states.map((s: any, i: number) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: i < states.length - 1 ? '1px solid #1a1929' : 'none' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: '#a5b4fc', minWidth: 28 }}>{s.state}</span>
-                    <div style={{ height: 3, width: `${s.pct * 1.6}px`, background: 'linear-gradient(90deg,#4338ca,#7c3aed)', borderRadius: 2 }} />
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#e2e8f0' }}>{brl(s.revenue)}</div>
-                    <div style={{ fontSize: 10, color: '#64748b' }}>{s.orders} pedidos</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: 18 }}>
-              <div style={{ fontSize: 10, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as any, letterSpacing: '0.5px', marginBottom: 12 }}>Ranking de produtos</div>
-              {products.length === 0
-                ? <div style={{ fontSize: 12, color: '#475569' }}>Sem dados para o período.</div>
-                : products.map((p, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: i < products.length - 1 ? '1px solid #1a1929' : 'none' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: '#6366f1', minWidth: 20, flexShrink: 0 }}>#{i + 1}</span>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as any }}>{p.product_title}</div>
-                        {p.variant_title && <div style={{ fontSize: 10, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as any }}>{p.variant_title}</div>}
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'right' as any, flexShrink: 0, marginLeft: 8 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#34d399' }}>{brl(p.revenue)}</div>
-                      <div style={{ fontSize: 10, color: '#64748b' }}>{p.qty} un.</div>
-                    </div>
+        {/* Vendas por estado + Ranking de produtos */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 12 }}>
+          <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: 18 }}>
+            <div style={{ fontSize: 10, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as any, letterSpacing: '0.5px', marginBottom: 12 }}>Vendas por estado</div>
+            {loading
+              ? Array(5).fill(0).map((_, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid #1a1929' }}>
+                    {Sk('40%', 9)}{Sk('25%', 9)}
                   </div>
                 ))
-              }
-            </div>
+              : states.length === 0
+                ? <div style={{ fontSize: 12, color: '#475569' }}>Sem dados</div>
+                : states.map((s: any, i: number) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: i < states.length - 1 ? '1px solid #1a1929' : 'none' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: '#a5b4fc', minWidth: 28 }}>{s.state}</span>
+                        <div style={{ height: 3, width: `${s.pct * 1.6}px`, background: 'linear-gradient(90deg,#4338ca,#7c3aed)', borderRadius: 2 }} />
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: '#e2e8f0' }}>{brl(s.revenue)}</div>
+                        <div style={{ fontSize: 10, color: '#64748b' }}>{s.orders} pedidos</div>
+                      </div>
+                    </div>
+                  ))
+            }
           </div>
-        </>
-      )}
+          <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: 18 }}>
+            <div style={{ fontSize: 10, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as any, letterSpacing: '0.5px', marginBottom: 12 }}>Ranking de produtos</div>
+            {loading
+              ? Array(5).fill(0).map((_, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid #1a1929' }}>
+                    {Sk('50%', 9)}{Sk('20%', 9)}
+                  </div>
+                ))
+              : products.length === 0
+                ? <div style={{ fontSize: 12, color: '#475569' }}>Sem dados para o período.</div>
+                : products.map((p, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: i < products.length - 1 ? '1px solid #1a1929' : 'none' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#6366f1', minWidth: 20, flexShrink: 0 }}>#{i + 1}</span>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as any }}>{p.product_title}</div>
+                          {p.variant_title && <div style={{ fontSize: 10, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as any }}>{p.variant_title}</div>}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right' as any, flexShrink: 0, marginLeft: 8 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: '#34d399' }}>{brl(p.revenue)}</div>
+                        <div style={{ fontSize: 10, color: '#64748b' }}>{p.qty} un.</div>
+                      </div>
+                    </div>
+                  ))
+            }
+          </div>
+        </div>
+
+      </>)}
     </div>
   )
 }
