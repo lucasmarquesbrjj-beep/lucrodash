@@ -1,13 +1,22 @@
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  // [FIX PERMANENTE] background inline no html+body — elimina flash branco antes do CSS/JS carregar
   return (
+    // [FIX PERMANENTE - não remover] background inline no <html> — cobre o flash antes do CSS parser rodar
     <html lang="pt-BR" style={{ background: '#0a0918' }}>
       <head>
         <title>Holy Dash · Ferramentas para quem constrói com propósito</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="description" content="Ferramentas para quem constrói com propósito" />
-       <link rel="icon" type="image/png" href="/favicon.png" sizes="32x32" />
-<link rel="apple-touch-icon" href="/favicon.png" />
+        <link rel="icon" type="image/png" href="/favicon.png" sizes="32x32" />
+        <link rel="apple-touch-icon" href="/favicon.png" />
+        {/* [FIX PERMANENTE - não remover]
+            Script inline executa ANTES do React e ANTES do CSS carregar.
+            Garante background escuro imediato mesmo em conexões lentas (mobile 3G).
+            dangerouslySetInnerHTML é intencional — este script não aceita user input. */}
+        <script dangerouslySetInnerHTML={{ __html: `
+          document.documentElement.style.background = '#0a0918';
+          document.body.style.background = '#0a0918';
+          document.body.style.color = '#e2e8f0';
+        ` }} />
         <style>{`
           *{box-sizing:border-box;margin:0;padding:0}
           body{background:#0a0918;color:#e2e8f0;font-family:-apple-system,system-ui,sans-serif}
@@ -22,8 +31,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           @keyframes hd-slide{0%{left:-50%}100%{left:110%}}
         `}</style>
       </head>
-      {/* [FIX PERMANENTE] background inline no body — garante cor escura antes de qualquer paint */}
-      <body style={{ background: '#0a0918' }}>
+      {/* [FIX PERMANENTE - não remover] background + minHeight inline no body — segunda camada de proteção */}
+      <body style={{ background: '#0a0918', minHeight: '100vh' }}>
         <div id="hd-shell">
           <div className="logo">H</div>
           <div className="name">Holy Dash</div>
