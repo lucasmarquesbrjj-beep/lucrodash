@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { Client } from 'pg';
 
-// Rota de migração one-shot — adiciona ml_access_token à tabela taxas_config
-// Usa DATABASE_URL (Postgres direto) para ter permissão de ALTER TABLE
+export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
 export async function GET() {
