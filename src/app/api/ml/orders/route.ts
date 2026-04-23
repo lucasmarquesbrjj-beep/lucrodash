@@ -73,13 +73,16 @@ function getDateRange(filter: string): { from: string; to: string; dateFrom: str
 async function fetchAdsSpend(token: string, sellerId: number, dateFrom: string, dateTo: string): Promise<number> {
   try {
     // Passo 1: obter advertiser ID
+    // Endpoint correto: /advertising/advertisers?user_id=X (403 sem scope; 404 = path errado)
     const advRes = await fetch(
-      `https://api.mercadolibre.com/advertising/onboarding/advertisers?user_id=${sellerId}`,
+      `https://api.mercadolibre.com/advertising/advertisers?user_id=${sellerId}`,
       { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }
     );
     if (!advRes.ok) return 0;
     const advData = await advRes.json();
-    const advertiserId = advData?.find?.((a: any) => a.status === 'active')?.id ?? advData?.[0]?.id;
+    const advertiserId = Array.isArray(advData)
+      ? (advData.find((a: any) => a.status === 'active')?.id ?? advData[0]?.id)
+      : (advData?.id ?? null);
     if (!advertiserId) return 0;
 
     // Passo 2: daily_summary do período

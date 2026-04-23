@@ -188,7 +188,7 @@ export default function Dashboard({ taxas }: { taxas: any }) {
   const tGw = isML ? 0 : fat * (taxas.gateway_pct || 0) / 100
   const tIm = fat * (taxas.imposto_pct || 0) / 100
   const tPr = pedidos * (taxas.custo_produto || 0)
-  const tFr = pedidos * (taxas.frete_fixo || 0)
+  const tFr = (isML || channel === 'shopee') ? 0 : pedidos * (taxas.frete_fixo || 0)
   // [FIX PERMANENTE - não remover] tMl usa taxaMlTotal da API (real) se disponível; fallback 13.5%
   const tMl = isML ? (mlData?.taxaMlTotal ?? fat * (taxas.ml_taxa_pct ?? 13.5) / 100) : 0
   // [FIX PERMANENTE - não remover] tMlAds = gasto real em Publicidade ML (via /api/ml/ads)
