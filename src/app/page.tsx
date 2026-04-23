@@ -1234,6 +1234,8 @@ export default function App() {
   useLayoutEffect(() => {
     setUser(localStorage.getItem('holydash_user'))
     setAuthReady(true)
+    const shell = document.getElementById('hd-shell')
+    if (shell) shell.remove()
   }, [])
 
   useEffect(() => {
