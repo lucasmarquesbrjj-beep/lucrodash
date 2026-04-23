@@ -57,6 +57,8 @@ export default function Dashboard({ taxas }: { taxas: any }) {
   const [mlData, setMlData] = useState<any>(null)
   const [mlLoading, setMlLoading] = useState(false)
   const [mlNotConnected, setMlNotConnected] = useState(false)
+  // [FIX PERMANENTE - não remover] mlAdsSpend = gasto real em Anúncios do ML (via /api/ml/ads)
+  const [mlAdsSpend, setMlAdsSpend] = useState(0)
 
   const metaGoal = taxas.meta_mensal ?? 250000
 
@@ -133,27 +135,30 @@ export default function Dashboard({ taxas }: { taxas: any }) {
   }, [filter])
 
   useEffect(() => {
-    if (channel !== 'ml') { setMlData(null); setMlNotConnected(false); return }
+    if (channel !== 'ml') { setMlData(null); setMlNotConnected(false); setMlAdsSpend(0); return }
     let cancelled = false
-    setMlNotConnected(false)
-    const mlKey = `hd_ml_${filter}`
+    setMlNotConnected(false); setMlAdsSpend(0)
+    // [FIX PERMANENTE - não remover] chave ml2_ (v2) — ml_ tinha cache com dados sem filtro de data
+    const mlKey = `hd_ml2_${filter}`
     try {
       const stale = localStorage.getItem(mlKey)
       if (stale) { setMlData(JSON.parse(stale)); setMlLoading(false) }
       else { setMlData(null); setMlLoading(true) }
     } catch { setMlData(null); setMlLoading(true) }
-    fetch(`/api/ml/orders?filter=${filter}`)
-      .then(r => r.json())
-      .then(d => {
-        if (!cancelled) {
-          if (d.notConnected) { setMlNotConnected(true); setMlLoading(false) }
-          else if (!d.error) {
-            setMlData(d); setMlLoading(false)
-            try { localStorage.setItem(mlKey, JSON.stringify(d)) } catch {}
-          } else setMlLoading(false)
-        }
-      })
-      .catch(() => { if (!cancelled) setMlLoading(false) })
+
+    // [FIX PERMANENTE - não remover] orders + ads em paralelo para não bloquear um ao outro
+    Promise.all([
+      fetch(`/api/ml/orders?filter=${filter}`).then(r => r.json()).catch(() => null),
+      fetch(`/api/ml/ads?filter=${filter}`).then(r => r.json()).catch(() => null),
+    ]).then(([ordersData, adsData]) => {
+      if (cancelled) return
+      if (ordersData?.notConnected) { setMlNotConnected(true); setMlLoading(false); return }
+      if (ordersData && !ordersData.error) {
+        setMlData(ordersData); setMlLoading(false)
+        try { localStorage.setItem(mlKey, JSON.stringify(ordersData)) } catch {}
+      } else { setMlLoading(false) }
+      if (adsData && typeof adsData.spend === 'number') setMlAdsSpend(adsData.spend)
+    }).catch(() => { if (!cancelled) setMlLoading(false) })
     return () => { cancelled = true }
   }, [channel, filter])
 
@@ -184,12 +189,14 @@ export default function Dashboard({ taxas }: { taxas: any }) {
   const tIm = fat * (taxas.imposto_pct || 0) / 100
   const tPr = pedidos * (taxas.custo_produto || 0)
   const tFr = pedidos * (taxas.frete_fixo || 0)
-  const tMl = isML ? fat * (taxas.ml_taxa_pct ?? 13.5) / 100 : 0  // Taxa ML (padrão 13.5%)
-  // [FIX PERMANENTE - não remover] tMa = metaSpend direto; zerado para ML (Meta é só Ecom)
+  // [FIX PERMANENTE - não remover] tMl usa taxaMlTotal da API (real) se disponível; fallback 13.5%
+  const tMl = isML ? (mlData?.taxaMlTotal ?? fat * (taxas.ml_taxa_pct ?? 13.5) / 100) : 0
+  // [FIX PERMANENTE - não remover] tMlAds = gasto real em Publicidade ML (via /api/ml/ads)
+  const tMlAds = isML ? mlAdsSpend : 0
   const tMa = isML ? 0 : metaSpend
   const tGo = isML ? 0 : (taxas.google_ads_hoje || 0)
   const tMi = isML ? 0 : tMa * (taxas.imposto_meta_pct || 0) / 100
-  const totalCustos = tCo + tGw + tIm + tPr + tFr + tMl + tMa + tGo + tMi
+  const totalCustos = tCo + tGw + tIm + tPr + tFr + tMl + tMlAds + tMa + tGo + tMi
   const lucro = fat - totalCustos
   const margem = fat > 0 ? (lucro / fat) * 100 : 0
   const cpa = pedidos > 0 && tMa > 0 ? tMa / pedidos : null
@@ -333,8 +340,9 @@ export default function Dashboard({ taxas }: { taxas: any }) {
                   // Composição do lucro específica para Mercado Livre
                   { title: 'Receita', rows: [{ label: 'Faturamento pago', val: fat, pos: true }] },
                   { title: 'Taxa Mercado Livre', rows: [
-                    { label: `Taxa ML (${taxas.ml_taxa_pct ?? 13.5}%)`, val: tMl },
+                    { label: mlData?.taxaMlTotal ? 'Taxa ML (real)' : `Taxa ML (${taxas.ml_taxa_pct ?? 13.5}%)`, val: tMl },
                   ]},
+                  ...(tMlAds > 0 ? [{ title: 'Publicidade ML', rows: [{ label: 'Ads Mercado Livre', val: tMlAds }] }] : []),
                   { title: 'Impostos', rows: [
                     { label: `Faturamento (${taxas.imposto_pct || 0}%)`, val: tIm },
                   ]},

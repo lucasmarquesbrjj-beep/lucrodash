@@ -5,52 +5,63 @@ const SB_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export const maxDuration = 60;
 
-function nowBrasilia() {
+// [FIX PERMANENTE - não remover]
+// ML API rejeita datas em UTC (Z) — precisa de offset BRT explícito (-03:00)
+// Ex: 2026-04-23T00:00:00.000-03:00 = meia-noite de Brasília
+// Usar UTC Z causava retorno de TODOS os pedidos históricos (5000+)
+function toMLDate(brtDate: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return (
+    `${brtDate.getFullYear()}-${pad(brtDate.getMonth() + 1)}-${pad(brtDate.getDate())}` +
+    `T${pad(brtDate.getHours())}:${pad(brtDate.getMinutes())}:${pad(brtDate.getSeconds())}.000-03:00`
+  );
+}
+
+function getBRT(): Date {
   return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
 }
 
-function getDateRange(filter: string) {
-  const now = nowBrasilia();
-  let from: string;
-  let to: string = new Date().toISOString();
+function getDateRange(filter: string): { from: string; to: string } {
+  const b = getBRT();
+  const Y = b.getFullYear(), Mo = b.getMonth(), D = b.getDate();
+  const pad = (n: number) => String(n).padStart(2, '0');
+
+  let f: Date, t: Date;
 
   if (filter === 'today') {
-    const s = new Date(now); s.setHours(0, 0, 0, 0);
-    from = new Date(s.getTime() + 3 * 3600000).toISOString();
+    f = new Date(Y, Mo, D,   0, 0, 0, 0);
+    t = new Date(Y, Mo, D,  23, 59, 59, 999);
   } else if (filter === 'yesterday') {
-    const s = new Date(now); s.setDate(s.getDate() - 1); s.setHours(0, 0, 0, 0);
-    const e = new Date(now); e.setHours(0, 0, 0, 0);
-    from = new Date(s.getTime() + 3 * 3600000).toISOString();
-    to   = new Date(e.getTime() + 3 * 3600000).toISOString();
+    f = new Date(Y, Mo, D-1, 0, 0, 0, 0);
+    t = new Date(Y, Mo, D-1,23, 59, 59, 999);
   } else if (filter === 'anteontem') {
-    const s = new Date(now); s.setDate(s.getDate() - 2); s.setHours(0, 0, 0, 0);
-    const e = new Date(now); e.setDate(e.getDate() - 1); e.setHours(0, 0, 0, 0);
-    from = new Date(s.getTime() + 3 * 3600000).toISOString();
-    to   = new Date(e.getTime() + 3 * 3600000).toISOString();
+    f = new Date(Y, Mo, D-2, 0, 0, 0, 0);
+    t = new Date(Y, Mo, D-2,23, 59, 59, 999);
   } else if (filter === '7d') {
-    const s = new Date(now); s.setDate(s.getDate() - 7); s.setHours(0, 0, 0, 0);
-    from = new Date(s.getTime() + 3 * 3600000).toISOString();
+    f = new Date(Y, Mo, D-7, 0, 0, 0, 0);
+    t = new Date(Y, Mo, D,  23, 59, 59, 999);
   } else if (filter === '30d') {
-    const s = new Date(now); s.setDate(s.getDate() - 30); s.setHours(0, 0, 0, 0);
-    from = new Date(s.getTime() + 3 * 3600000).toISOString();
+    f = new Date(Y, Mo, D-30,0, 0, 0, 0);
+    t = new Date(Y, Mo, D,  23, 59, 59, 999);
   } else if (filter === 'year') {
-    const s = new Date(now.getFullYear(), 0, 1);
-    from = new Date(s.getTime() + 3 * 3600000).toISOString();
+    f = new Date(Y,  0,  1,  0, 0, 0, 0);
+    t = new Date(Y, 11, 31, 23, 59, 59, 999);
   } else if (filter === 'lastyear') {
-    const s = new Date(now.getFullYear() - 1, 0, 1);
-    const e = new Date(now.getFullYear(), 0, 1);
-    from = new Date(s.getTime() + 3 * 3600000).toISOString();
-    to   = new Date(e.getTime() + 3 * 3600000).toISOString();
+    f = new Date(Y-1,0,  1,  0, 0, 0, 0);
+    t = new Date(Y-1,11,31, 23, 59, 59, 999);
   } else if (filter.startsWith('custom:')) {
-    const parts = filter.split(':');
-    from = new Date(parts[1] + 'T00:00:00-03:00').toISOString();
-    to   = new Date(parts[2] + 'T23:59:59-03:00').toISOString();
+    const [,d1,d2] = filter.split(':');
+    const [y1,m1,dd1] = d1.split('-').map(Number);
+    const [y2,m2,dd2] = d2.split('-').map(Number);
+    f = new Date(y1, m1-1, dd1, 0, 0, 0, 0);
+    t = new Date(y2, m2-1, dd2,23,59,59,999);
   } else {
-    const s = new Date(now.getFullYear(), now.getMonth(), 1);
-    from = new Date(s.getTime() + 3 * 3600000).toISOString();
+    // month (default)
+    f = new Date(Y, Mo, 1,  0, 0, 0, 0);
+    t = new Date(Y, Mo, D, 23, 59, 59, 999);
   }
 
-  return { from, to };
+  return { from: toMLDate(f), to: toMLDate(t) };
 }
 
 export async function GET(request: NextRequest) {
@@ -69,14 +80,13 @@ export async function GET(request: NextRequest) {
 
   // Get seller ID
   const meRes = await fetch('https://api.mercadolibre.com/users/me', {
-    headers: { Authorization: `Bearer ${token}` },
-    cache: 'no-store',
+    headers: { Authorization: `Bearer ${token}` }, cache: 'no-store',
   });
   if (!meRes.ok) return NextResponse.json({ error: 'Token ML inválido ou expirado', notConnected: true }, { status: 401 });
   const me = await meRes.json();
   const sellerId = me.id;
 
-  // Paginate orders
+  // Paginate orders — para quando bater o total real da API
   const allOrders: any[] = [];
   let offset = 0;
   const limit = 50;
@@ -84,15 +94,15 @@ export async function GET(request: NextRequest) {
   const timer = setTimeout(() => abort.abort(), 50000);
 
   try {
-    while (allOrders.length < 5000) {
+    while (true) {
       const params = new URLSearchParams({
-        seller: String(sellerId),
-        'order.status': 'paid',
+        seller:              String(sellerId),
+        'order.status':      'paid',
         'date_created.from': from,
-        'date_created.to': to,
-        sort: 'date_desc',
-        limit: String(limit),
-        offset: String(offset),
+        'date_created.to':   to,
+        sort:                'date_desc',
+        limit:               String(limit),
+        offset:              String(offset),
       });
 
       const res = await fetch(`https://api.mercadolibre.com/orders/search?${params}`, {
@@ -104,17 +114,22 @@ export async function GET(request: NextRequest) {
       if (!res.ok) break;
       const body = await res.json();
       const orders: any[] = body.results || [];
+      const total: number = body.paging?.total ?? 0;
+
       allOrders.push(...orders);
 
-      if (orders.length < limit || allOrders.length >= (body.paging?.total ?? 0)) break;
+      // Para quando não há mais páginas
+      if (orders.length < limit || allOrders.length >= total) break;
       offset += limit;
     }
   } catch {}
   finally { clearTimeout(timer); }
 
-  const faturamentoPago = allOrders.reduce((s, o) => s + (o.total_amount || 0), 0);
-  const pedidosPagos = allOrders.length;
-  const ticketMedio = pedidosPagos > 0 ? faturamentoPago / pedidosPagos : 0;
+  const faturamentoPago = allOrders.reduce((s, o) => s + (o.total_amount      || 0), 0);
+  // [FIX PERMANENTE - não remover] taxaMlTotal = taxa real cobrada pelo ML (sale_fee_amount por pedido)
+  const taxaMlTotal    = allOrders.reduce((s, o) => s + (o.sale_fee_amount    || 0), 0);
+  const pedidosPagos   = allOrders.length;
+  const ticketMedio    = pedidosPagos > 0 ? faturamentoPago / pedidosPagos : 0;
 
   const hourly = Array(24).fill(0);
   allOrders.forEach(o => {
@@ -122,5 +137,11 @@ export async function GET(request: NextRequest) {
     hourly[h] += o.total_amount || 0;
   });
 
-  return NextResponse.json({ faturamentoPago, faturamentoBruto: faturamentoPago, pedidosPagos, pedidosGerados: pedidosPagos, ticketMedio, hourly });
+  return NextResponse.json({
+    faturamentoPago, faturamentoBruto: faturamentoPago,
+    pedidosPagos, pedidosGerados: pedidosPagos,
+    ticketMedio,
+    taxaMlTotal, // taxa real cobrada pelo ML (soma de sale_fee_amount)
+    hourly,
+  });
 }
