@@ -1,6 +1,7 @@
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  // [FIX PERMANENTE] background inline no html+body — elimina flash branco antes do CSS/JS carregar
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" style={{ background: '#0a0918' }}>
       <head>
         <title>Holy Dash · Ferramentas para quem constrói com propósito</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -21,7 +22,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           @keyframes hd-slide{0%{left:-50%}100%{left:110%}}
         `}</style>
       </head>
-      <body>
+      {/* [FIX PERMANENTE] background inline no body — garante cor escura antes de qualquer paint */}
+      <body style={{ background: '#0a0918' }}>
         <div id="hd-shell">
           <div className="logo">H</div>
           <div className="name">Holy Dash</div>

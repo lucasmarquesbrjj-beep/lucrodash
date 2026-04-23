@@ -116,12 +116,11 @@ function DashPage({ taxas }: { taxas: any }) {
   const [loading, setLoading] = useState<boolean>(() => {
     try { return localStorage.getItem('hd_today') === null } catch { return true }
   })
-  const [metaLoading, setMetaLoading] = useState<boolean>(() => {
-    try { return localStorage.getItem('hd_meta_today') === null } catch { return true }
-  })
-  const [metaSpend, setMetaSpend] = useState<number | null>(() => {
-    try { const s = localStorage.getItem('hd_meta_today'); return s !== null ? Number(s) : null } catch { return null }
-  })
+  // [FIX PERMANENTE] metaSpend inicia de taxas.meta_ads_hoje (sempre number, nunca null/undefined)
+  // DashPage só monta depois que taxas já está carregado (ver App component)
+  // Isso elimina o skeleton de lucro/CPA/ROAS — não há mais espera por meta para renderizar
+  // O /api/meta/spend roda em background e atualiza silenciosamente sem flip skeleton→valor
+  const [metaSpend, setMetaSpend] = useState<number>(taxas.meta_ads_hoje ?? 0)
   const [monthData, setMonthData] = useState<any>(null)
   const [products, setProducts] = useState<any[]>([])
   const [funnel, setFunnel] = useState<{ abandoned: number } | null>(null)
@@ -142,13 +141,13 @@ function DashPage({ taxas }: { taxas: any }) {
       else { setData(null); setLoading(true) }
     } catch { setData(null); setLoading(true) }
 
-    // Stale-while-revalidate for meta spend
+    // [FIX PERMANENTE] Meta spend: lê cache local sem setMetaLoading — nunca causa skeleton
+    // Para 'today': fallback para taxas.meta_ads_hoje (carregado antes deste componente montar)
     const metaKey = `hd_meta_${filter}`
     try {
-      const staleMeta = localStorage.getItem(metaKey)
-      if (staleMeta !== null) { setMetaSpend(Number(staleMeta)); setMetaLoading(false) }
-      else { setMetaSpend(null); setMetaLoading(true) }
-    } catch { setMetaSpend(null); setMetaLoading(true) }
+      const cached = localStorage.getItem(metaKey)
+      setMetaSpend(cached !== null ? Number(cached) : (filter === 'today' ? (taxas.meta_ads_hoje ?? 0) : 0))
+    } catch { setMetaSpend(filter === 'today' ? (taxas.meta_ads_hoje ?? 0) : 0) }
 
     fetch(`/api/shopify/orders?filter=${filter}`)
       .then(r => r.json())
@@ -159,15 +158,24 @@ function DashPage({ taxas }: { taxas: any }) {
         }
       })
       .catch(() => { if (!cancelled) setLoading(false) })
+    // [FIX PERMANENTE] Meta fetch em background — atualiza silenciosamente sem setMetaLoading
+    // Quando chegar, só atualiza o número (sem flip skeleton) e salva em localStorage + taxas cache
     fetch(`/api/meta/spend?filter=${filter}`)
       .then(r => r.json())
       .then(d => {
         if (!cancelled && typeof d.spend === 'number') {
-          setMetaSpend(d.spend); setMetaLoading(false)
+          setMetaSpend(d.spend)
           try { localStorage.setItem(metaKey, String(d.spend)) } catch {}
+          if (filter === 'today') {
+            try {
+              const t = JSON.parse(localStorage.getItem('hd_taxas') || '{}')
+              t.meta_ads_hoje = d.spend
+              localStorage.setItem('hd_taxas', JSON.stringify(t))
+            } catch {}
+          }
         }
       })
-      .catch(() => { if (!cancelled) setMetaLoading(false) })
+      .catch(() => {})
     fetch('/api/shopify/orders?filter=month')
       .then(r => r.json()).then(d => { if (!cancelled) setMonthData(d) }).catch(() => {})
     fetch(`/api/shopify/products?filter=${filter}`)
@@ -225,7 +233,8 @@ function DashPage({ taxas }: { taxas: any }) {
   const tIm = fat * (taxas.imposto_pct || 0) / 100
   const tPr = pedidos * (taxas.custo_produto || 0)
   const tFr = pedidos * (taxas.frete_fixo || 0)
-  const tMa = metaSpend !== null ? metaSpend : (filter === 'today' ? (taxas.meta_ads_hoje ?? 0) : 0)
+  // [FIX PERMANENTE] tMa = metaSpend direto (sempre number >= 0, sem fallback condicional)
+  const tMa = metaSpend
   const tGo = taxas.google_ads_hoje || 0
   const tMi = tMa * (taxas.imposto_meta_pct || 0) / 100
   const totalCustos = tCo + tGw + tIm + tPr + tFr + tMa + tGo + tMi
@@ -337,12 +346,14 @@ function DashPage({ taxas }: { taxas: any }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 14 }}>
           {([
             { label: 'Faturamento pago', color: '#6366f1', ld: loading, val: brl(fat), sub: `Bruto: ${brl(Math.round((d.faturamentoBruto || 0) * m))}` },
-            { label: 'Lucro líquido',    color: lucro > 0 ? '#34d399' : '#f87171', valColor: lucro > 0 ? '#34d399' : '#f87171', ld: loading || metaLoading, val: brl(lucro), sub: `Margem: ${margem.toFixed(1)}%` },
+            // [FIX PERMANENTE] metaLoading removido de todas as condições ld
+            // lucro/custos/CPA/ROAS mostram imediatamente com taxas.meta_ads_hoje; atualizam silenciosamente
+            { label: 'Lucro líquido',    color: lucro > 0 ? '#34d399' : '#f87171', valColor: lucro > 0 ? '#34d399' : '#f87171', ld: loading, val: brl(lucro), sub: `Margem: ${margem.toFixed(1)}%` },
             { label: 'Pedidos pagos',    color: '#a78bfa', ld: loading, val: num(pedidos), sub: `de ${num(Math.round((d.pedidosGerados || 0) * m))} gerados` },
             { label: 'Ticket médio',     color: '#fbbf24', ld: loading, val: brl(d.ticketMedio || 0) },
-            { label: 'Total custos',     color: '#f87171', ld: loading || metaLoading, val: brl(totalCustos) },
-            { label: 'CPA',              color: cpaColor, valColor: cpaColor, ld: loading || metaLoading, val: cpa !== null ? brl(cpa) : 'Sem dados de ads', sub: 'Custo / pedido pago' },
-            { label: 'ROAS',             color: roasColor, valColor: roasColor, ld: metaLoading, val: roas !== null ? roas.toFixed(2) + 'x' : '—', sub: 'Fat. / gasto Ads' },
+            { label: 'Total custos',     color: '#f87171', ld: loading, val: brl(totalCustos) },
+            { label: 'CPA',              color: cpaColor, valColor: cpaColor, ld: loading, val: cpa !== null ? brl(cpa) : 'Sem dados de ads', sub: 'Custo / pedido pago' },
+            { label: 'ROAS',             color: roasColor, valColor: roasColor, ld: false, val: roas !== null ? roas.toFixed(2) + 'x' : '—', sub: 'Fat. / gasto Ads' },
           ] as { label: string; color: string; valColor?: string; ld: boolean; val: string; sub?: string }[]).map((k, i) => (
             <div key={i} style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '14px 16px', position: 'relative', overflow: 'hidden' }}>
               <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg,${k.color},transparent)` }} />
@@ -363,7 +374,8 @@ function DashPage({ taxas }: { taxas: any }) {
         <div className="grid-lucro-pedidos" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
           <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '16px 18px' }}>
             <div style={{ fontSize: 10, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as any, letterSpacing: '0.5px', marginBottom: 12 }}>Composição do lucro</div>
-            {(loading || metaLoading) ? (
+            {/* [FIX PERMANENTE] apenas loading (Shopify) controla skeleton da composição */}
+            {loading ? (
               Array(9).fill(0).map((_, i) => (
                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #1a1929' }}>
                   {Sk(`${40 + (i % 3) * 10}%`, 9)}{Sk('22%', 9)}
@@ -1242,13 +1254,56 @@ function ProdutosPage() {
   )
 }
 
+// [FIX PERMANENTE] Skeleton do app shell — exibido enquanto auth ou taxas ainda carregam.
+// Nunca deixa a tela preta: mostra header "Holy Dash" + cards skeleton imediatamente.
+// Deve ter o mesmo visual do app autenticado para evitar qualquer flash de layout.
+function AppShellSkeleton() {
+  return (
+    <div style={{ display: 'flex', minHeight: '100vh', background: '#0a0918' }}>
+      <style>{`@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}`}</style>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <header style={{ position: 'sticky', top: 0, zIndex: 30, background: '#0f0e17', borderBottom: '1px solid #1e1d2e', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 22, height: 22, background: '#1e1d2e', borderRadius: 4 }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 24, height: 24, borderRadius: 6, background: 'linear-gradient(135deg,#4338ca,#7c3aed)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 12 }}>H</div>
+            <span style={{ color: '#e2e8f0', fontWeight: 700, fontSize: 14 }}>Holy Dash</span>
+          </div>
+        </header>
+        <main style={{ flex: 1, padding: '18px 16px 60px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10 }}>
+            {Array(7).fill(0).map((_, i) => (
+              <div key={i} style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '14px 16px' }}>
+                {(['55%','72%','40%'] as string[]).map((w, j) => (
+                  <div key={j}>
+                    {j > 0 && <div style={{ height: j === 1 ? 8 : 7 }} />}
+                    <div style={{ width: w, height: j === 1 ? 22 : 9, borderRadius: 5, background: 'linear-gradient(90deg,#1a1929 25%,#252436 50%,#1a1929 75%)', backgroundSize: '400px 100%', animation: 'shimmer 1.4s infinite linear' }} />
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </main>
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
   const [page, setPage] = useState<Page>('dashboard')
   const [menuOpen, setMenuOpen] = useState(false)
-  const [taxas, setTaxas] = useState<any>({})
   const [user, setUser] = useState<string | null>(null)
   const [authReady, setAuthReady] = useState(false)
   const [toast, setToast] = useState('')
+
+  // [FIX PERMANENTE] taxas cacheado em localStorage — disponível antes do DashPage montar.
+  // DashPage só é renderizado quando taxasReady=true, garantindo que taxas.meta_ads_hoje
+  // esteja populado antes do primeiro render de DashPage (elimina o delay do lucro líquido).
+  const [taxas, setTaxas] = useState<any>(() => {
+    try { const c = localStorage.getItem('hd_taxas'); return c ? JSON.parse(c) : {} } catch { return {} }
+  })
+  const [taxasReady, setTaxasReady] = useState<boolean>(() => {
+    try { return localStorage.getItem('hd_taxas') !== null } catch { return false }
+  })
 
   useLayoutEffect(() => {
     setUser(localStorage.getItem('holydash_user'))
@@ -1268,14 +1323,23 @@ export default function App() {
     }
   }, [])
 
-  const refreshTaxas = () => fetch('/api/taxas').then(r => r.json()).then(setTaxas)
+  // [FIX PERMANENTE] refreshTaxas salva em localStorage e seta taxasReady.
+  // Carrega taxas PRIMEIRO — DashPage só monta depois que taxasReady=true.
+  const refreshTaxas = () => fetch('/api/taxas').then(r => r.json()).then(t => {
+    setTaxas(t)
+    setTaxasReady(true)
+    try { localStorage.setItem('hd_taxas', JSON.stringify(t)) } catch {}
+  })
 
   useEffect(() => {
     if (user) refreshTaxas()
   }, [user])
 
-  if (!authReady) return <div style={{ minHeight: '100vh', background: '#0a0918' }} />
+  // [FIX PERMANENTE] Nunca retorna div vazia — AppShellSkeleton mantém background escuro
+  // e header "Holy Dash" visível durante auth check e enquanto taxas carrega.
+  if (!authReady) return <AppShellSkeleton />
   if (!user) return <LoginPage onLogin={setUser} />
+  if (!taxasReady) return <AppShellSkeleton />
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#0a0918' }}>
