@@ -6,6 +6,7 @@ const SB_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 // Rota de diagnóstico — mostra estado completo da integração ML
 export async function GET() {
   const result: Record<string, any> = {};
+  try {
 
   // 1. Busca dados do Supabase
   const sbRes = await fetch(
@@ -31,7 +32,7 @@ export async function GET() {
   }
 
   // 2. Testa token na API do ML (busca dados do usuário)
-  const meRes = await fetch('https://api.mercadolivre.com/users/me', {
+  const meRes = await fetch('https://api.mercadolibre.com/users/me', {
     headers: { Authorization: `Bearer ${token}` },
   });
   const meBody = await meRes.json().catch(() => null);
@@ -52,7 +53,7 @@ export async function GET() {
     limit: '5',
     offset: '0',
   });
-  const ordersRes = await fetch(`https://api.mercadolivre.com/orders/search?${params}`, {
+  const ordersRes = await fetch(`https://api.mercadolibre.com/orders/search?${params}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   const ordersBody = await ordersRes.json().catch(() => null);
@@ -69,5 +70,8 @@ export async function GET() {
     error: ordersBody?.error,
   };
 
-  return NextResponse.json({ ok: true, result });
+    return NextResponse.json({ ok: true, result });
+  } catch (err: any) {
+    return NextResponse.json({ ok: false, error: err?.message, result }, { status: 500 });
+  }
 }
