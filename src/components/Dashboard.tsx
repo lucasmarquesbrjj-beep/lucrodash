@@ -1,13 +1,16 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { Sk, skSt } from './LoadingSkeleton'
-import { MetaSpend } from './MetaSpend'
 
-// [FIX PERMANENTE - não remover]
-// Este componente só é montado depois que taxas está disponível (ver AppLayout).
-// metaSpend NUNCA é null — inicia de taxas.meta_ads_hoje para que lucro/CPA/ROAS
-// apareçam imediatamente sem skeleton. MetaSpend refina o valor em background.
-// NUNCA adicione metaLoading aqui. NUNCA bloqueie lucro/CPA/ROAS com skeleton de meta.
+// [FIX PERMANENTE - Meta Ads parallel fetch - não remover]
+// Shopify + Meta spend são buscados em PARALELO via Promise.all.
+// Os cards só renderizam quando os DOIS chegarem juntos — um único setState batch.
+// React 18 auto-bate múltiplos setState dentro do mesmo .then(), garantindo
+// exatamente UM re-render com todos os valores corretos.
+// Resultado: lucro líquido nunca pula/pisca após ser exibido.
+//
+// NÃO separar o fetch do Meta em componente externo (MetaSpend) nem em useEffect
+// independente — isso causaria o problema original de dois re-renders sequenciais.
 
 const brl = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
 const num = (v: number) => new Intl.NumberFormat('pt-BR').format(v)
@@ -27,18 +30,26 @@ export default function Dashboard({ taxas }: { taxas: any }) {
   const [customStart, setCustomStart] = useState('')
   const [customEnd, setCustomEnd] = useState('')
 
+  // [FIX PERMANENTE - Meta Ads parallel fetch - não remover]
+  // metaSpend inicia do cache localStorage (hd_meta_today) se disponível,
+  // senão de taxas.meta_ads_hoje. loading só é false quando shopify E meta estão prontos.
   const [data, setData] = useState<any>(() => {
     try { const s = localStorage.getItem('hd_today'); return s ? JSON.parse(s) : null } catch { return null }
   })
-  const [loading, setLoading] = useState<boolean>(() => {
-    try { return localStorage.getItem('hd_today') === null } catch { return true }
+  const [metaSpend, setMetaSpend] = useState<number>(() => {
+    try {
+      const c = localStorage.getItem('hd_meta_today')
+      return c !== null ? Number(c) : (taxas.meta_ads_hoje ?? 0)
+    } catch { return taxas.meta_ads_hoje ?? 0 }
   })
-
-  // [FIX PERMANENTE - não remover]
-  // metaSpend inicia de taxas.meta_ads_hoje (sempre number, nunca null).
-  // Dashboard só monta quando taxasReady=true (ver AppLayout), então taxas.meta_ads_hoje já existe.
-  // MetaSpend component atualiza este valor silenciosamente após fetch completar.
-  const [metaSpend, setMetaSpend] = useState<number>(taxas.meta_ads_hoje ?? 0)
+  // loading=false só quando shopify E meta estão disponíveis (cache ou fetch)
+  const [loading, setLoading] = useState<boolean>(() => {
+    try {
+      const hasShopify = localStorage.getItem('hd_today') !== null
+      const hasMeta = localStorage.getItem('hd_meta_today') !== null || taxas.meta_ads_hoje != null
+      return !(hasShopify && hasMeta)
+    } catch { return true }
+  })
 
   const [monthData, setMonthData] = useState<any>(null)
   const [products, setProducts] = useState<any[]>([])
@@ -54,31 +65,63 @@ export default function Dashboard({ taxas }: { taxas: any }) {
     setProducts([]); setFunnel(null)
 
     const cacheKey = `hd_${filter}`
-    try {
-      const stale = localStorage.getItem(cacheKey)
-      if (stale) { setData(JSON.parse(stale)); setLoading(false) }
-      else { setData(null); setLoading(true) }
-    } catch { setData(null); setLoading(true) }
+    const metaKey  = `hd_meta_${filter}`
 
-    // [FIX PERMANENTE - não remover]
-    // Ao trocar filtro: reset metaSpend para cache local ou taxas.meta_ads_hoje (hoje)
-    // Sem setMetaLoading — MetaSpend component atualiza em background sem skeleton
-    const metaKey = `hd_meta_${filter}`
+    // [FIX PERMANENTE - Meta Ads parallel fetch - não remover]
+    // Stale-while-revalidate: se shopify E meta estão em cache, exibe imediatamente.
+    // Depois re-busca os dois em paralelo e atualiza juntos (um único re-render).
+    // Se algum não estiver em cache, mantém loading=true até ambos chegarem.
     try {
-      const cached = localStorage.getItem(metaKey)
-      setMetaSpend(cached !== null ? Number(cached) : (filter === 'today' ? (taxas.meta_ads_hoje ?? 0) : 0))
-    } catch { setMetaSpend(filter === 'today' ? (taxas.meta_ads_hoje ?? 0) : 0) }
+      const staleShopify = localStorage.getItem(cacheKey)
+      const staleMeta    = localStorage.getItem(metaKey)
+      const metaFallback = filter === 'today' ? (taxas.meta_ads_hoje ?? 0) : 0
 
-    fetch(`/api/shopify/orders?filter=${filter}`)
-      .then(r => r.json())
-      .then(d => {
-        if (!cancelled && !d?.error) {
-          setData(d); setLoading(false)
-          try { localStorage.setItem(cacheKey, JSON.stringify(d)) } catch {}
+      if (staleShopify && (staleMeta !== null || filter === 'today' && taxas.meta_ads_hoje != null)) {
+        setData(JSON.parse(staleShopify))
+        setMetaSpend(staleMeta !== null ? Number(staleMeta) : metaFallback)
+        setLoading(false)
+      } else {
+        setData(null)
+        setMetaSpend(metaFallback)
+        setLoading(true)
+      }
+    } catch {
+      setData(null)
+      setMetaSpend(filter === 'today' ? (taxas.meta_ads_hoje ?? 0) : 0)
+      setLoading(true)
+    }
+
+    // [FIX PERMANENTE - Meta Ads parallel fetch - não remover]
+    // Promise.all garante que setData + setMetaSpend + setLoading(false) rodam
+    // no MESMO callback → React 18 os bate em UM re-render → lucro não pula.
+    // NUNCA separe esses dois fetches em Promises independentes.
+    Promise.all([
+      fetch(`/api/shopify/orders?filter=${filter}`).then(r => r.json()).catch(() => null),
+      fetch(`/api/meta/spend?filter=${filter}`).then(r => r.json()).catch(() => null),
+    ]).then(([shopifyData, metaData]) => {
+      if (cancelled) return
+
+      if (shopifyData && !shopifyData.error) {
+        setData(shopifyData)
+        try { localStorage.setItem(cacheKey, JSON.stringify(shopifyData)) } catch {}
+      }
+
+      if (metaData && typeof metaData.spend === 'number') {
+        setMetaSpend(metaData.spend)
+        try { localStorage.setItem(metaKey, String(metaData.spend)) } catch {}
+        if (filter === 'today') {
+          try {
+            const t = JSON.parse(localStorage.getItem('hd_taxas') || '{}')
+            t.meta_ads_hoje = metaData.spend
+            localStorage.setItem('hd_taxas', JSON.stringify(t))
+          } catch {}
         }
-      })
-      .catch(() => { if (!cancelled) setLoading(false) })
+      }
 
+      setLoading(false) // ambos chegaram — UM único re-render com valores definitivos
+    })
+
+    // Fetches secundários (não bloqueiam os KPI cards)
     fetch('/api/shopify/orders?filter=month')
       .then(r => r.json()).then(d => { if (!cancelled) setMonthData(d) }).catch(() => {})
     fetch(`/api/shopify/products?filter=${filter}`)
@@ -181,9 +224,6 @@ export default function Dashboard({ taxas }: { taxas: any }) {
         @keyframes ld-slide{0%{left:-50%;width:45%}60%{width:55%}100%{left:110%;width:45%}}
         @keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
       `}</style>
-
-      {/* [FIX PERMANENTE - não remover] MetaSpend busca em background e chama setMetaSpend */}
-      <MetaSpend filter={filter} onSpend={setMetaSpend} />
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
         <div>
