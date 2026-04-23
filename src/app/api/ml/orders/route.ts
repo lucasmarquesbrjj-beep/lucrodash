@@ -6,23 +6,24 @@ const SB_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 export const maxDuration = 60;
 
 // [FIX PERMANENTE - não remover]
-// ML API rejeita datas em UTC (Z) — precisa de offset BRT explícito (-03:00)
-// Ex: 2026-04-23T00:00:00.000-03:00 = meia-noite de Brasília
-// Usar UTC Z causava retorno de TODOS os pedidos históricos (5000+)
-function toMLDate(brtDate: Date): string {
+// ML retorna datas com offset -04:00 — filtro DEVE usar -04:00 para ser reconhecido.
+// UTC (Z) e -03:00 fazem ML ignorar o filtro e retornar TODOS os pedidos históricos.
+// URL construída manualmente (sem URLSearchParams) para evitar encoding %3A nos colons.
+function toMLDate(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return (
-    `${brtDate.getFullYear()}-${pad(brtDate.getMonth() + 1)}-${pad(brtDate.getDate())}` +
-    `T${pad(brtDate.getHours())}:${pad(brtDate.getMinutes())}:${pad(brtDate.getSeconds())}.000-03:00`
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.000-04:00`
   );
 }
 
-function getBRT(): Date {
-  return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+function getMLLocal(): Date {
+  // ML usa offset -04:00 — calcular datas no fuso America/Manaus (UTC-4)
+  return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Manaus' }));
 }
 
 function getDateRange(filter: string): { from: string; to: string } {
-  const b = getBRT();
+  const b = getMLLocal();
   const Y = b.getFullYear(), Mo = b.getMonth(), D = b.getDate();
   const pad = (n: number) => String(n).padStart(2, '0');
 
@@ -95,17 +96,19 @@ export async function GET(request: NextRequest) {
 
   try {
     while (true) {
-      const params = new URLSearchParams({
-        seller:              String(sellerId),
-        'order.status':      'paid',
-        'date_created.from': from,
-        'date_created.to':   to,
-        sort:                'date_desc',
-        limit:               String(limit),
-        offset:              String(offset),
-      });
+      // URL manual — evita %3A no encoding de datas que quebra o filtro ML
+      // Parâmetros de data precisam do prefixo order. (igual order.status)
+      const url =
+        `https://api.mercadolibre.com/orders/search` +
+        `?seller=${sellerId}` +
+        `&order.status=paid` +
+        `&order.date_created.from=${from}` +
+        `&order.date_created.to=${to}` +
+        `&sort=date_desc` +
+        `&limit=${limit}` +
+        `&offset=${offset}`;
 
-      const res = await fetch(`https://api.mercadolibre.com/orders/search?${params}`, {
+      const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
         cache: 'no-store',
         signal: abort.signal,
