@@ -176,22 +176,29 @@ export default function Dashboard({ taxas }: { taxas: any }) {
   const hourly: number[] = (d.hourly || Array(24).fill(0)).map((v: number) => Math.round(v * m))
   const states = (d.states || []).map((s: any) => ({ ...s, orders: Math.round(s.orders * m), revenue: Math.round(s.revenue * m) }))
 
-  const tCo = fat * (taxas.checkout_pct || 0) / 100
-  const tGw = fat * (taxas.gateway_pct || 0) / 100
+  // Custos diferenciados por canal:
+  // ML: sem checkout/gateway/Meta/Google — usa Taxa ML no lugar
+  // Ecom/Shopee/Geral: taxas normais da Shopify + Meta Ads
+  const tCo = isML ? 0 : fat * (taxas.checkout_pct || 0) / 100
+  const tGw = isML ? 0 : fat * (taxas.gateway_pct || 0) / 100
   const tIm = fat * (taxas.imposto_pct || 0) / 100
   const tPr = pedidos * (taxas.custo_produto || 0)
   const tFr = pedidos * (taxas.frete_fixo || 0)
-  // [FIX PERMANENTE - não remover] tMa = metaSpend direto (sempre >= 0, sem fallback condicional)
-  const tMa = metaSpend
-  const tGo = taxas.google_ads_hoje || 0
-  const tMi = tMa * (taxas.imposto_meta_pct || 0) / 100
-  const totalCustos = tCo + tGw + tIm + tPr + tFr + tMa + tGo + tMi
+  const tMl = isML ? fat * (taxas.ml_taxa_pct ?? 13.5) / 100 : 0  // Taxa ML (padrão 13.5%)
+  // [FIX PERMANENTE - não remover] tMa = metaSpend direto; zerado para ML (Meta é só Ecom)
+  const tMa = isML ? 0 : metaSpend
+  const tGo = isML ? 0 : (taxas.google_ads_hoje || 0)
+  const tMi = isML ? 0 : tMa * (taxas.imposto_meta_pct || 0) / 100
+  const totalCustos = tCo + tGw + tIm + tPr + tFr + tMl + tMa + tGo + tMi
   const lucro = fat - totalCustos
   const margem = fat > 0 ? (lucro / fat) * 100 : 0
   const cpa = pedidos > 0 && tMa > 0 ? tMa / pedidos : null
   const cpaColor = cpa === null ? '#94a3b8' : cpa < (d.ticketMedio || 0) ? '#34d399' : '#f87171'
   const roas = tMa > 0 ? fat / tMa : null
   const roasColor = roas === null ? '#94a3b8' : roas >= 3 ? '#34d399' : roas >= 1.5 ? '#fbbf24' : '#f87171'
+
+  // loading correto por canal: ML usa mlLoading, os outros usam o loading do Shopify+Meta
+  const cardLoading = isML ? (mlLoading && !mlData) : loading
 
   const ccAprov = Math.round((d.cartaoAprovado || 0) * m)
   const ccPend  = Math.round((d.cartaoPendente || 0) * m)
@@ -284,15 +291,15 @@ export default function Dashboard({ taxas }: { taxas: any }) {
         {/* KPI cards — sempre visíveis, skeleton inline por fonte de dados */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 14 }}>
           {([
-            { label: 'Faturamento pago', color: '#6366f1', ld: loading, val: brl(fat), sub: `Bruto: ${brl(Math.round((d.faturamentoBruto || 0) * m))}` },
-            // [FIX PERMANENTE - não remover] ld: loading apenas (sem metaLoading)
-            // lucro/custos/CPA/ROAS mostram imediatamente com taxas.meta_ads_hoje
-            { label: 'Lucro líquido',    color: lucro > 0 ? '#34d399' : '#f87171', valColor: lucro > 0 ? '#34d399' : '#f87171', ld: loading, val: brl(lucro), sub: `Margem: ${margem.toFixed(1)}%` },
-            { label: 'Pedidos pagos',    color: '#a78bfa', ld: loading, val: num(pedidos), sub: `de ${num(Math.round((d.pedidosGerados || 0) * m))} gerados` },
-            { label: 'Ticket médio',     color: '#fbbf24', ld: loading, val: brl(d.ticketMedio || 0) },
-            { label: 'Total custos',     color: '#f87171', ld: loading, val: brl(totalCustos) },
-            { label: 'CPA',              color: cpaColor, valColor: cpaColor, ld: loading, val: cpa !== null ? brl(cpa) : 'Sem dados de ads', sub: 'Custo / pedido pago' },
-            { label: 'ROAS',             color: roasColor, valColor: roasColor, ld: false, val: roas !== null ? roas.toFixed(2) + 'x' : '—', sub: 'Fat. / gasto Ads' },
+            { label: 'Faturamento pago', color: '#6366f1', ld: cardLoading, val: brl(fat), sub: isML ? undefined : `Bruto: ${brl(Math.round((d.faturamentoBruto || 0) * m))}` },
+            // [FIX PERMANENTE - não remover] ld: cardLoading (Shopify+Meta para ecom, mlLoading para ML)
+            { label: 'Lucro líquido',    color: lucro > 0 ? '#34d399' : '#f87171', valColor: lucro > 0 ? '#34d399' : '#f87171', ld: cardLoading, val: brl(lucro), sub: `Margem: ${margem.toFixed(1)}%` },
+            { label: 'Pedidos pagos',    color: '#a78bfa', ld: cardLoading, val: num(pedidos), sub: isML ? undefined : `de ${num(Math.round((d.pedidosGerados || 0) * m))} gerados` },
+            { label: 'Ticket médio',     color: '#fbbf24', ld: cardLoading, val: brl(d.ticketMedio || 0) },
+            { label: 'Total custos',     color: '#f87171', ld: cardLoading, val: brl(totalCustos) },
+            // CPA e ROAS só fazem sentido para Ecom (dependem de Meta Ads spend)
+            { label: 'CPA',  color: cpaColor,  valColor: cpaColor,  ld: cardLoading, val: isML ? '—' : (cpa !== null ? brl(cpa) : 'Sem dados de ads'), sub: isML ? 'N/A para ML' : 'Custo / pedido pago' },
+            { label: 'ROAS', color: roasColor, valColor: roasColor, ld: false,       val: isML ? '—' : (roas !== null ? roas.toFixed(2) + 'x' : '—'), sub: isML ? 'N/A para ML' : 'Fat. / gasto Ads' },
           ] as { label: string; color: string; valColor?: string; ld: boolean; val: string; sub?: string }[]).map((k, i) => (
             <div key={i} style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '14px 16px', position: 'relative', overflow: 'hidden' }}>
               <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg,${k.color},transparent)` }} />
@@ -313,8 +320,8 @@ export default function Dashboard({ taxas }: { taxas: any }) {
         <div className="grid-lucro-pedidos" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
           <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '16px 18px' }}>
             <div style={{ fontSize: 10, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as any, letterSpacing: '0.5px', marginBottom: 12 }}>Composição do lucro</div>
-            {/* [FIX PERMANENTE - não remover] apenas loading (Shopify) controla skeleton aqui */}
-            {loading ? (
+            {/* [FIX PERMANENTE - não remover] apenas cardLoading controla skeleton aqui */}
+            {cardLoading ? (
               Array(9).fill(0).map((_, i) => (
                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #1a1929' }}>
                   {Sk(`${40 + (i % 3) * 10}%`, 9)}{Sk('22%', 9)}
@@ -322,7 +329,21 @@ export default function Dashboard({ taxas }: { taxas: any }) {
               ))
             ) : (
               <>
-                {([
+                {(isML ? [
+                  // Composição do lucro específica para Mercado Livre
+                  { title: 'Receita', rows: [{ label: 'Faturamento pago', val: fat, pos: true }] },
+                  { title: 'Taxa Mercado Livre', rows: [
+                    { label: `Taxa ML (${taxas.ml_taxa_pct ?? 13.5}%)`, val: tMl },
+                  ]},
+                  { title: 'Impostos', rows: [
+                    { label: `Faturamento (${taxas.imposto_pct || 0}%)`, val: tIm },
+                  ]},
+                  { title: 'Custos Operacionais', rows: [
+                    { label: `Custo produto (${pedidos}x)`, val: tPr },
+                    { label: `Frete (${pedidos}x)`, val: tFr },
+                  ]},
+                ] : [
+                  // Composição do lucro para Ecom / Shopee / Geral
                   { title: 'Receita', rows: [{ label: 'Faturamento pago', val: fat, pos: true }] },
                   { title: 'Taxas de Plataforma', rows: [
                     { label: `Checkout (${taxas.checkout_pct || 0}%)`, val: tCo },
@@ -364,14 +385,19 @@ export default function Dashboard({ taxas }: { taxas: any }) {
 
           <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '16px 18px' }}>
             <div style={{ fontSize: 10, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as any, letterSpacing: '0.5px', marginBottom: 12 }}>Pedidos</div>
-            {loading ? (
-              Array(10).fill(0).map((_, i) => (
+            {cardLoading ? (
+              Array(isML ? 3 : 10).fill(0).map((_, i) => (
                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #1a1929' }}>
                   {Sk(`${40 + (i % 3) * 10}%`, 9)}{Sk('22%', 9)}
                 </div>
               ))
             ) : (
-              [
+              (isML ? [
+                // ML: só mostra pedidos pagos e ticket médio (dados reais da API do ML)
+                { label: 'Pagos', val: num(pedidos), hi: true },
+                { label: 'Ticket médio', val: brl(d.ticketMedio || 0), hi: true },
+              ] : [
+                // Ecom / Shopee / Geral: breakdown completo de pagamentos
                 { label: 'Gerados', val: num(Math.round((d.pedidosGerados || 0) * m)) },
                 { label: 'Pagos', val: num(pedidos), hi: true },
                 { label: 'Pendentes', val: num(Math.round((d.pedidosPendentes || 0) * m)) },
@@ -382,7 +408,7 @@ export default function Dashboard({ taxas }: { taxas: any }) {
                 { label: 'Boleto pago', val: num(Math.round((d.boletoPago || 0) * m)), hi: true },
                 { label: 'Boleto pendente', val: num(Math.round((d.boletoPendente || 0) * m)) },
                 { label: 'Reenvios', val: `${Math.round((d.reenvios || 0) * m)} (${d.reenviosPct || 0}%)`, red: true },
-              ].map((r, i) => (
+              ]).map((r, i) => (
                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #1a1929', fontSize: 12 }}>
                   <span style={{ color: '#94a3b8' }}>{r.label}</span>
                   <span style={{ fontWeight: 600, color: (r as any).red ? '#fca5a5' : r.hi ? '#a5b4fc' : '#e2e8f0', marginLeft: 16 }}>{r.val}</span>
