@@ -36,7 +36,6 @@ export async function GET(request: NextRequest) {
   const filter = request.nextUrl.searchParams.get('filter') || 'today';
   const { from, to } = getDateYMD(filter);
 
-  // 1. Token do ML
   const sbRes = await fetch(
     `${SB_URL}/rest/v1/taxas_config?id=eq.config&select=ml_access_token&limit=1`,
     { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` }, cache: 'no-store' }
@@ -46,7 +45,6 @@ export async function GET(request: NextRequest) {
   const token = sbData[0]?.ml_access_token;
   if (!token) return NextResponse.json({ spend: 0, error: 'no_token' });
 
-  // 2. Seller ID
   const meRes = await fetch('https://api.mercadolibre.com/users/me', {
     headers: { Authorization: `Bearer ${token}` }, cache: 'no-store',
   });
@@ -54,55 +52,34 @@ export async function GET(request: NextRequest) {
   const me = await meRes.json();
   const sellerId = me.id;
 
-  // 3. Advertiser ID
-  // Endpoint correto: /advertising/advertisers?user_id=X (retorna 403 sem scope advertising)
-  // Endpoint antigo /advertising/onboarding/advertisers?user_id=X retorna 404 (path errado)
+  // Passo 1: advertiser ID
+  // product_id=PADS obrigatório; sem ele retorna "product_id param not found"
   const advRes = await fetch(
-    `https://api.mercadolibre.com/advertising/advertisers?user_id=${sellerId}`,
-    { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }
+    `https://api.mercadolibre.com/advertising/advertisers?product_id=PADS&user_id=${sellerId}`,
+    { headers: { Authorization: `Bearer ${token}`, 'Api-Version': '1' }, cache: 'no-store' }
   );
   if (!advRes.ok) {
-    const advErr = await advRes.json().catch(() => ({}));
-    return NextResponse.json({
-      spend: 0,
-      error: 'advertisers_endpoint_failed',
-      advertisers_status: advRes.status,
-      advertisers_error: advErr,
-      hint: advRes.status === 403
-        ? 'App ML precisa de permissão advertising no portal dev + re-autenticar com scope=advertising'
-        : 'Endpoint não encontrado',
-    });
+    const err = await advRes.json().catch(() => ({}));
+    return NextResponse.json({ spend: 0, error: 'advertisers_failed', status: advRes.status, detail: err });
   }
   const advData = await advRes.json();
-  const advertiserId = Array.isArray(advData)
-    ? (advData.find((a: any) => a.status === 'active')?.id ?? advData[0]?.id)
-    : (advData?.id ?? null);
-  if (!advertiserId) {
-    return NextResponse.json({ spend: 0, error: 'no_advertiser_id', advData });
-  }
+  const advertiser = advData?.advertisers?.[0];
+  if (!advertiser) return NextResponse.json({ spend: 0, error: 'no_advertiser', advData });
+  const { advertiser_id: advertiserId, site_id: siteId } = advertiser;
 
-  // 4. Gasto de anúncios no período (daily_summary)
+  // Passo 2: gasto por período
+  // aggregation_type=DAILY retorna custo por dia; soma o campo cost de cada entry
   const statsRes = await fetch(
-    `https://api.mercadolibre.com/advertising/advertisers/${advertiserId}/adproducts/PRODUCT_ADS/adgroups/adgroupsAll/campaigns/all/daily_summary` +
-    `?date_from=${from}&date_to=${to}`,
-    { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }
+    `https://api.mercadolibre.com/marketplace/advertising/${siteId}/advertisers/${advertiserId}/product_ads/campaigns/search` +
+    `?date_from=${from}&date_to=${to}&metrics=cost&aggregation_type=DAILY`,
+    { headers: { Authorization: `Bearer ${token}`, 'Api-Version': '2' }, cache: 'no-store' }
   );
   if (!statsRes.ok) {
-    const statsErr = await statsRes.json().catch(() => ({}));
-    return NextResponse.json({
-      spend: 0,
-      error: 'daily_summary_failed',
-      stats_status: statsRes.status,
-      stats_error: statsErr,
-      advertiserId,
-    });
+    const err = await statsRes.json().catch(() => ({}));
+    return NextResponse.json({ spend: 0, error: 'stats_failed', status: statsRes.status, detail: err, advertiserId, siteId });
   }
   const stats = await statsRes.json();
+  const spend: number = (stats?.results ?? []).reduce((s: number, d: any) => s + (d.cost ?? 0), 0);
 
-  let spend = 0;
-  if (Array.isArray(stats))                    spend = stats.reduce((s: number, d: any) => s + (d.spent ?? d.total_spent ?? 0), 0);
-  else if (typeof stats?.spent === 'number')   spend = stats.spent;
-  else if (typeof stats?.total_spent === 'number') spend = stats.total_spent;
-
-  return NextResponse.json({ spend, advertiserId, from, to });
+  return NextResponse.json({ spend, advertiserId, siteId, from, to });
 }

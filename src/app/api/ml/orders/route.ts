@@ -70,32 +70,29 @@ function getDateRange(filter: string): { from: string; to: string; dateFrom: str
   };
 }
 
-// Retorna { spend, available } — available=false quando falta scope de advertising
+// Retorna { spend, available } — available=false quando endpoint falha
 async function fetchAdsSpend(token: string, sellerId: number, dateFrom: string, dateTo: string): Promise<{ spend: number; available: boolean }> {
   try {
+    // product_id=PADS obrigatório + Api-Version: 1
     const advRes = await fetch(
-      `https://api.mercadolibre.com/advertising/advertisers?user_id=${sellerId}`,
-      { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }
+      `https://api.mercadolibre.com/advertising/advertisers?product_id=PADS&user_id=${sellerId}`,
+      { headers: { Authorization: `Bearer ${token}`, 'Api-Version': '1' }, cache: 'no-store' }
     );
     if (!advRes.ok) return { spend: 0, available: false };
     const advData = await advRes.json();
-    const advertiserId = Array.isArray(advData)
-      ? (advData.find((a: any) => a.status === 'active')?.id ?? advData[0]?.id)
-      : (advData?.id ?? null);
-    if (!advertiserId) return { spend: 0, available: false };
+    const advertiser = advData?.advertisers?.[0];
+    if (!advertiser) return { spend: 0, available: false };
+    const { advertiser_id: advertiserId, site_id: siteId } = advertiser;
 
+    // Api-Version: 2 + aggregation_type=DAILY; soma results[].cost
     const statsRes = await fetch(
-      `https://api.mercadolibre.com/advertising/advertisers/${advertiserId}/adproducts/PRODUCT_ADS/adgroups/adgroupsAll/campaigns/all/daily_summary` +
-      `?date_from=${dateFrom}&date_to=${dateTo}`,
-      { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }
+      `https://api.mercadolibre.com/marketplace/advertising/${siteId}/advertisers/${advertiserId}/product_ads/campaigns/search` +
+      `?date_from=${dateFrom}&date_to=${dateTo}&metrics=cost&aggregation_type=DAILY`,
+      { headers: { Authorization: `Bearer ${token}`, 'Api-Version': '2' }, cache: 'no-store' }
     );
     if (!statsRes.ok) return { spend: 0, available: false };
     const stats = await statsRes.json();
-
-    let spend = 0;
-    if (Array.isArray(stats))                        spend = stats.reduce((s: number, d: any) => s + (d.spent ?? d.total_spent ?? 0), 0);
-    else if (typeof stats?.spent === 'number')        spend = stats.spent;
-    else if (typeof stats?.total_spent === 'number')  spend = stats.total_spent;
+    const spend: number = (stats?.results ?? []).reduce((s: number, d: any) => s + (d.cost ?? 0), 0);
     return { spend, available: true };
   } catch {
     return { spend: 0, available: false };
