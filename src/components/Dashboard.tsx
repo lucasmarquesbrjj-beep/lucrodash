@@ -146,19 +146,20 @@ export default function Dashboard({ taxas }: { taxas: any }) {
       else { setMlData(null); setMlLoading(true) }
     } catch { setMlData(null); setMlLoading(true) }
 
-    // [FIX PERMANENTE - não remover] orders + ads em paralelo para não bloquear um ao outro
-    Promise.all([
-      fetch(`/api/ml/orders?filter=${filter}`).then(r => r.json()).catch(() => null),
-      fetch(`/api/ml/ads?filter=${filter}`).then(r => r.json()).catch(() => null),
-    ]).then(([ordersData, adsData]) => {
-      if (cancelled) return
-      if (ordersData?.notConnected) { setMlNotConnected(true); setMlLoading(false); return }
-      if (ordersData && !ordersData.error) {
-        setMlData(ordersData); setMlLoading(false)
-        try { localStorage.setItem(mlKey, JSON.stringify(ordersData)) } catch {}
-      } else { setMlLoading(false) }
-      if (adsData && typeof adsData.spend === 'number') setMlAdsSpend(adsData.spend)
-    }).catch(() => { if (!cancelled) setMlLoading(false) })
+    // [FIX PERMANENTE - não remover] orders já inclui adsSpend/adsAvailable/cpa/roas
+    // Não chamar /api/ml/ads separadamente — evita request extra e duplicação
+    fetch(`/api/ml/orders?filter=${filter}`).then(r => r.json()).catch(() => null)
+      .then((ordersData) => {
+        if (cancelled) return
+        if (ordersData?.notConnected) { setMlNotConnected(true); setMlLoading(false); return }
+        if (ordersData && !ordersData.error) {
+          setMlData(ordersData); setMlLoading(false)
+          if (ordersData.adsAvailable && typeof ordersData.adsSpend === 'number') {
+            setMlAdsSpend(ordersData.adsSpend)
+          }
+          try { localStorage.setItem(mlKey, JSON.stringify(ordersData)) } catch {}
+        } else { setMlLoading(false) }
+      }).catch(() => { if (!cancelled) setMlLoading(false) })
     return () => { cancelled = true }
   }, [channel, filter])
 
@@ -305,8 +306,8 @@ export default function Dashboard({ taxas }: { taxas: any }) {
             { label: 'Ticket médio',     color: '#fbbf24', ld: cardLoading, val: brl(d.ticketMedio || 0) },
             { label: 'Total custos',     color: '#f87171', ld: cardLoading, val: brl(totalCustos) },
             // CPA e ROAS só fazem sentido para Ecom (dependem de Meta Ads spend)
-            { label: 'CPA',  color: cpaColor,  valColor: cpaColor,  ld: cardLoading, val: isML ? '—' : (cpa !== null ? brl(cpa) : 'Sem dados de ads'), sub: isML ? 'N/A para ML' : 'Custo / pedido pago' },
-            { label: 'ROAS', color: roasColor, valColor: roasColor, ld: false,       val: isML ? '—' : (roas !== null ? roas.toFixed(2) + 'x' : '—'), sub: isML ? 'N/A para ML' : 'Fat. / gasto Ads' },
+            { label: 'CPA',  color: cpaColor,  valColor: cpaColor,  ld: cardLoading, val: isML ? (mlData?.adsAvailable ? (mlData?.cpa !== null ? brl(mlData.cpa) : '—') : 'N/A') : (cpa !== null ? brl(cpa) : 'Sem dados de ads'), sub: isML ? (mlData?.adsAvailable ? 'Ads ML / pedido' : 'Habilitar ads no ML') : 'Custo / pedido pago' },
+            { label: 'ROAS', color: roasColor, valColor: roasColor, ld: false,       val: isML ? (mlData?.adsAvailable ? (mlData?.roas !== null ? mlData.roas.toFixed(2) + 'x' : '—') : 'N/A') : (roas !== null ? roas.toFixed(2) + 'x' : '—'), sub: isML ? (mlData?.adsAvailable ? 'Fat. / gasto Ads ML' : 'Habilitar ads no ML') : 'Fat. / gasto Ads' },
           ] as { label: string; color: string; valColor?: string; ld: boolean; val: string; sub?: string }[]).map((k, i) => (
             <div key={i} style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: '14px 16px', position: 'relative', overflow: 'hidden' }}>
               <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg,${k.color},transparent)` }} />

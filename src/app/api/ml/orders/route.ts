@@ -70,36 +70,35 @@ function getDateRange(filter: string): { from: string; to: string; dateFrom: str
   };
 }
 
-async function fetchAdsSpend(token: string, sellerId: number, dateFrom: string, dateTo: string): Promise<number> {
+// Retorna { spend, available } — available=false quando falta scope de advertising
+async function fetchAdsSpend(token: string, sellerId: number, dateFrom: string, dateTo: string): Promise<{ spend: number; available: boolean }> {
   try {
-    // Passo 1: obter advertiser ID
-    // Endpoint correto: /advertising/advertisers?user_id=X (403 sem scope; 404 = path errado)
     const advRes = await fetch(
       `https://api.mercadolibre.com/advertising/advertisers?user_id=${sellerId}`,
       { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }
     );
-    if (!advRes.ok) return 0;
+    if (!advRes.ok) return { spend: 0, available: false };
     const advData = await advRes.json();
     const advertiserId = Array.isArray(advData)
       ? (advData.find((a: any) => a.status === 'active')?.id ?? advData[0]?.id)
       : (advData?.id ?? null);
-    if (!advertiserId) return 0;
+    if (!advertiserId) return { spend: 0, available: false };
 
-    // Passo 2: daily_summary do período
     const statsRes = await fetch(
       `https://api.mercadolibre.com/advertising/advertisers/${advertiserId}/adproducts/PRODUCT_ADS/adgroups/adgroupsAll/campaigns/all/daily_summary` +
       `?date_from=${dateFrom}&date_to=${dateTo}`,
       { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }
     );
-    if (!statsRes.ok) return 0;
+    if (!statsRes.ok) return { spend: 0, available: false };
     const stats = await statsRes.json();
 
-    if (Array.isArray(stats))             return stats.reduce((s: number, d: any) => s + (d.spent ?? d.total_spent ?? 0), 0);
-    if (typeof stats?.spent === 'number') return stats.spent;
-    if (typeof stats?.total_spent === 'number') return stats.total_spent;
-    return 0;
+    let spend = 0;
+    if (Array.isArray(stats))                        spend = stats.reduce((s: number, d: any) => s + (d.spent ?? d.total_spent ?? 0), 0);
+    else if (typeof stats?.spent === 'number')        spend = stats.spent;
+    else if (typeof stats?.total_spent === 'number')  spend = stats.total_spent;
+    return { spend, available: true };
   } catch {
-    return 0;
+    return { spend: 0, available: false };
   }
 }
 
@@ -182,9 +181,9 @@ export async function GET(request: NextRequest) {
     hourly[h] += o.total_amount || 0;
   });
 
-  const adsSpend = await adsPromise;
-  const cpa  = adsSpend > 0 && pedidosPagos > 0 ? adsSpend / pedidosPagos : 0;
-  const roas = adsSpend > 0 ? faturamentoPago / adsSpend : 0;
+  const { spend: adsSpend, available: adsAvailable } = await adsPromise;
+  const cpa  = adsAvailable && adsSpend > 0 && pedidosPagos > 0 ? adsSpend / pedidosPagos : null;
+  const roas = adsAvailable && adsSpend > 0 ? faturamentoPago / adsSpend : null;
 
   return NextResponse.json({
     faturamentoPago, faturamentoBruto: faturamentoPago,
@@ -192,8 +191,9 @@ export async function GET(request: NextRequest) {
     ticketMedio,
     taxaMlTotal,
     adsSpend,
-    cpa,
-    roas,
+    adsAvailable, // false = falta scope advertising no app ML
+    cpa,          // null quando adsAvailable=false
+    roas,         // null quando adsAvailable=false
     hourly,
   });
 }
