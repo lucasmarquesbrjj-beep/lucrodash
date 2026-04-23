@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
   console.log('[ML OAuth] Trocando code por token...', { APP_ID, REDIRECT_URI });
   let tokenData: any;
   try {
-    const tokenRes = await fetch('https://api.mercadolivre.com/oauth/token', {
+    const tokenRes = await fetch('https://api.mercadolibre.com/oauth/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
       body: new URLSearchParams({

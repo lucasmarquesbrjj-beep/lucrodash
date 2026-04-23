@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
   if (!token) return NextResponse.json({ notConnected: true }, { status: 401 });
 
   // Get seller ID
-  const meRes = await fetch('https://api.mercadolivre.com/users/me', {
+  const meRes = await fetch('https://api.mercadolibre.com/users/me', {
     headers: { Authorization: `Bearer ${token}` },
     cache: 'no-store',
   });
@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
         offset: String(offset),
       });
 
-      const res = await fetch(`https://api.mercadolivre.com/orders/search?${params}`, {
+      const res = await fetch(`https://api.mercadolibre.com/orders/search?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
         cache: 'no-store',
         signal: abort.signal,
