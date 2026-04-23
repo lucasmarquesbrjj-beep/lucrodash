@@ -228,12 +228,36 @@ function IntegracoesPage({ onToast }: { onToast: (m: string) => void }) {
   const [ml, setMl] = useState(false)
   const [shopee, setShopee] = useState(false)
   const [google, setGoogle] = useState(false)
+  const [mlSetupNeeded, setMlSetupNeeded] = useState(false)
+  const [mlSetupRunning, setMlSetupRunning] = useState(false)
+  const [mlSetupSql, setMlSetupSql] = useState('')
+
   useEffect(() => {
     fetch('/api/taxas').then(r => r.json()).then(d => {
       if (d.meta_access_token) setMeta(true)
+      // Verifica token ML — se a chave está ausente (undefined, não false) a coluna não existe
       if (d.ml_access_token) setMl(true)
     })
   }, [])
+
+  const runMlSetup = async () => {
+    setMlSetupRunning(true)
+    try {
+      const res = await fetch('/api/ml/setup')
+      const data = await res.json()
+      if (data.ok) {
+        onToast('Coluna ml_access_token criada! Conecte agora.')
+        setMlSetupNeeded(false)
+      } else {
+        setMlSetupSql(data.sql || '')
+        onToast('Setup automático falhou. Veja o SQL abaixo.')
+      }
+    } catch {
+      onToast('Erro ao rodar setup do ML.')
+    }
+    setMlSetupRunning(false)
+  }
+
   const IntCard = ({ icon, iconBg, title, desc, connected, onToggle, connectLabel, connectBg }: any) => (
     <div style={{ background: '#141320', border: '1px solid #1e1d2e', borderRadius: 14, padding: 18, marginBottom: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
@@ -251,12 +275,52 @@ function IntegracoesPage({ onToast }: { onToast: (m: string) => void }) {
       </div>
     </div>
   )
+
   return (
     <div>
       <div style={{ marginBottom: 18 }}><h1 style={{ fontSize: 20, fontWeight: 700, color: '#f1f5f9' }}>Integrações</h1><p style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>Conecte suas plataformas</p></div>
+
       <IntCard icon="🛒" iconBg="rgba(149,191,71,0.15)" title="Shopify" desc="Pedidos e faturamento em tempo real" connected={shopify} connectLabel="Conectar com Shopify" connectBg="linear-gradient(135deg,#4338ca,#7c3aed)" onToggle={() => { setShopify(!shopify); onToast(shopify ? 'Shopify desconectada' : 'Shopify conectada!') }} />
       <IntCard icon="📘" iconBg="rgba(24,119,242,0.15)" title="Meta Ads" desc="Gastos com anúncios automaticamente" connected={meta} connectLabel="Conectar com Facebook" connectBg="linear-gradient(135deg,#1877f2,#0d5abf)" onToggle={() => { if (!meta) { window.location.href = '/api/auth/meta' } else { setMeta(false); onToast('Meta Ads desconectado') } }} />
-      <IntCard icon="🟡" iconBg="rgba(251,191,36,0.15)" title="Mercado Livre" desc="Pedidos e faturamento do ML" connected={ml} connectLabel="Conectar com Mercado Livre" connectBg="linear-gradient(135deg,#f5a623,#e08e00)" onToggle={() => { if (!ml) { window.location.href = '/api/auth/ml' } else { setMl(false); onToast('Mercado Livre desconectado') } }} />
+
+      {/* Mercado Livre com setup automático de coluna */}
+      <IntCard icon="🟡" iconBg="rgba(251,191,36,0.15)" title="Mercado Livre" desc="Pedidos e faturamento do ML" connected={ml} connectLabel="Conectar com Mercado Livre" connectBg="linear-gradient(135deg,#f5a623,#e08e00)"
+        onToggle={() => {
+          if (!ml) {
+            // Verifica setup antes de iniciar OAuth
+            fetch('/api/ml/setup').then(r => r.json()).then(d => {
+              if (d.ok) {
+                window.location.href = '/api/auth/ml'
+              } else {
+                setMlSetupNeeded(true)
+                setMlSetupSql(d.sql || '')
+              }
+            }).catch(() => { window.location.href = '/api/auth/ml' })
+          } else {
+            setMl(false); onToast('Mercado Livre desconectado')
+          }
+        }}
+      />
+      {mlSetupNeeded && (
+        <div style={{ background: '#1a1020', border: '1px solid #92400e', borderRadius: 12, padding: 16, marginBottom: 12, marginTop: -8 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#fbbf24', marginBottom: 8 }}>⚠️ Setup necessário — coluna ml_access_token não existe no Supabase</div>
+          <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 12 }}>Execute o SQL abaixo no Supabase SQL Editor, depois conecte normalmente:</div>
+          <code style={{ display: 'block', background: '#0f0e17', border: '1px solid #2d2d3d', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#a5b4fc', fontFamily: 'monospace', marginBottom: 12 }}>
+            ALTER TABLE taxas_config ADD COLUMN IF NOT EXISTS ml_access_token TEXT;
+          </code>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={runMlSetup} disabled={mlSetupRunning}
+              style={{ padding: '7px 16px', borderRadius: 8, background: 'linear-gradient(135deg,#f5a623,#e08e00)', border: 'none', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', opacity: mlSetupRunning ? 0.7 : 1 }}>
+              {mlSetupRunning ? 'Executando...' : 'Tentar setup automático'}
+            </button>
+            <a href="https://supabase.com/dashboard" target="_blank" rel="noreferrer"
+              style={{ padding: '7px 16px', borderRadius: 8, background: 'transparent', border: '1px solid #2d2d3d', color: '#64748b', fontSize: 12, fontWeight: 600, cursor: 'pointer', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
+              Abrir Supabase Dashboard
+            </a>
+          </div>
+        </div>
+      )}
+
       <IntCard icon="🧡" iconBg="rgba(249,115,22,0.15)" title="Shopee" desc="Pedidos e faturamento da Shopee" connected={shopee} connectLabel="Conectar com Shopee" connectBg="linear-gradient(135deg,#f97316,#c2410c)" onToggle={() => { setShopee(!shopee); onToast(shopee ? 'Shopee desconectada' : 'Shopee conectada!') }} />
       <IntCard icon="🎯" iconBg="rgba(234,67,53,0.15)" title="Google Ads" desc="Gastos com anúncios automaticamente" connected={google} connectLabel="Conectar com Google Ads" connectBg="linear-gradient(135deg,#ea4335,#c5221f)" onToggle={() => { setGoogle(!google); onToast(google ? 'Google Ads desconectado' : 'Google Ads conectado!') }} />
     </div>
