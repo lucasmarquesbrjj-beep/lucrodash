@@ -28,6 +28,7 @@ export default function Dashboard({ taxas }: { taxas: any }) {
   const [channel, setChannel] = useState('ecom')
   const [showCustom, setShowCustom] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [pullState, setPullState] = useState<'idle' | 'pulling' | 'refreshing'>('idle')
 
   const doRefresh = () => {
     try { Object.keys(localStorage).filter(k => k.startsWith('hd_')).forEach(k => localStorage.removeItem(k)) } catch {}
@@ -194,20 +195,33 @@ export default function Dashboard({ taxas }: { taxas: any }) {
     return () => { cancelled = true }
   }, [channel, filter, refreshKey])
 
-  // Pull-to-refresh: registrado uma vez, usa ref para acessar doRefresh atual
+  // Pull-to-refresh: registrado uma vez, usa ref para doRefresh e setState direto (setter é estável)
   useEffect(() => {
     let startY = 0
+    const atTop = () => { const m = document.querySelector('main'); return m ? m.scrollTop <= 4 : window.scrollY <= 4 }
     const onStart = (e: TouchEvent) => { startY = e.touches[0].clientY }
+    const onMove  = (e: TouchEvent) => {
+      const dy = e.touches[0].clientY - startY
+      if (dy > 8 && atTop()) setPullState('pulling')
+      else if (dy <= 8)      setPullState('idle')
+    }
     const onEnd = (e: TouchEvent) => {
       const dy = e.changedTouches[0].clientY - startY
-      const main = document.querySelector('main')
-      if (dy > 72 && (main ? main.scrollTop <= 4 : window.scrollY <= 4)) doRefreshRef.current()
+      if (dy > 72 && atTop()) {
+        setPullState('refreshing')
+        doRefreshRef.current()
+        setTimeout(() => setPullState('idle'), 1500)
+      } else {
+        setPullState('idle')
+      }
     }
     document.addEventListener('touchstart', onStart, { passive: true })
-    document.addEventListener('touchend', onEnd, { passive: true })
+    document.addEventListener('touchmove',  onMove,  { passive: true })
+    document.addEventListener('touchend',   onEnd,   { passive: true })
     return () => {
       document.removeEventListener('touchstart', onStart)
-      document.removeEventListener('touchend', onEnd)
+      document.removeEventListener('touchmove',  onMove)
+      document.removeEventListener('touchend',   onEnd)
     }
   }, [])
 
@@ -289,7 +303,18 @@ export default function Dashboard({ taxas }: { taxas: any }) {
         @media(max-width:600px){.grid-lucro-pedidos{grid-template-columns:1fr!important}}
         @keyframes ld-slide{0%{left:-50%;width:45%}60%{width:55%}100%{left:110%;width:45%}}
         @keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        .refresh-label{display:none}
+        @media(max-width:600px){.refresh-label{display:inline}}
       `}</style>
+
+      {/* Indicador de pull-to-refresh — aparece no mobile ao puxar ou atualizar */}
+      {pullState !== 'idle' && (
+        <div style={{ position: 'fixed', top: 48, left: 0, right: 0, zIndex: 35, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '9px 0', background: '#141320', borderBottom: '1px solid #1e1d2e', fontSize: 13, color: pullState === 'refreshing' ? '#34d399' : '#94a3b8' }}>
+          <span style={{ display: 'inline-block', animation: pullState === 'refreshing' ? 'spin 0.8s linear infinite' : 'none' }}>↻</span>
+          {pullState === 'refreshing' ? 'Atualizando...' : 'Solte para atualizar'}
+        </div>
+      )}
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
         <div>
@@ -305,7 +330,9 @@ export default function Dashboard({ taxas }: { taxas: any }) {
             <button onClick={() => setShowCustom(!showCustom)}
               style={{ padding: '5px 12px', borderRadius: 20, fontSize: 12, border: showCustom ? '1.5px solid #6366f1' : '1px solid #2d2d3d', background: showCustom ? 'rgba(99,102,241,0.15)' : 'transparent', color: showCustom ? '#a5b4fc' : '#64748b', cursor: 'pointer' }}>📅 Período</button>
             <button onClick={doRefresh} title="Atualizar dados"
-              style={{ padding: '5px 10px', borderRadius: 20, fontSize: 13, border: '1px solid #2d2d3d', background: 'transparent', color: '#64748b', cursor: 'pointer', lineHeight: 1 }}>↻</button>
+              style={{ padding: '5px 12px', borderRadius: 20, fontSize: 12, border: '1px solid #2d2d3d', background: 'transparent', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span>↻</span><span className="refresh-label">Atualizar</span>
+            </button>
           </div>
           {showCustom && (
             <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
