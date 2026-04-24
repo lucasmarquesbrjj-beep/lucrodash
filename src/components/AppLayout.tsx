@@ -276,29 +276,32 @@ function IntegracoesPage({ onToast }: { onToast: (m: string) => void }) {
     </div>
   )
 
+  const Section = ({ title, color }: { title: string; color: string }) => (
+    <div style={{ fontSize: 11, fontWeight: 700, color, textTransform: 'uppercase' as any, letterSpacing: '0.6px', marginBottom: 10, marginTop: 20, paddingBottom: 6, borderBottom: `1px solid ${color}22` }}>
+      {title}
+    </div>
+  )
+
   return (
     <div>
       <div style={{ marginBottom: 18 }}><h1 style={{ fontSize: 20, fontWeight: 700, color: '#f1f5f9' }}>Integrações</h1><p style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>Conecte suas plataformas</p></div>
 
+      {/* ── Site ─────────────────────────────────────────────────────── */}
+      <Section title="Site" color="#a5b4fc" />
       <IntCard icon="🛒" iconBg="rgba(149,191,71,0.15)" title="Shopify" desc="Pedidos e faturamento em tempo real" connected={shopify} connectLabel="Conectar com Shopify" connectBg="linear-gradient(135deg,#4338ca,#7c3aed)" onToggle={() => { setShopify(!shopify); onToast(shopify ? 'Shopify desconectada' : 'Shopify conectada!') }} />
-      <IntCard icon="📘" iconBg="rgba(24,119,242,0.15)" title="Meta Ads" desc="Gastos com anúncios automaticamente" connected={meta} connectLabel="Conectar com Facebook" connectBg="linear-gradient(135deg,#1877f2,#0d5abf)" onToggle={() => { if (!meta) { window.location.href = '/api/auth/meta' } else { setMeta(false); onToast('Meta Ads desconectado') } }} />
+      <IntCard icon="🛍️" iconBg="rgba(99,102,241,0.15)" title="CartPanda" desc="Checkout e pedidos CartPanda" connected={false} connectLabel="Em breve" connectBg="linear-gradient(135deg,#4338ca,#7c3aed)" onToggle={() => onToast('CartPanda em breve!')} />
+      <IntCard icon="☁️" iconBg="rgba(14,165,233,0.15)" title="NuvemShop" desc="Pedidos e faturamento NuvemShop" connected={false} connectLabel="Em breve" connectBg="linear-gradient(135deg,#0ea5e9,#0284c7)" onToggle={() => onToast('NuvemShop em breve!')} />
 
-      {/* Mercado Livre com setup automático de coluna */}
+      {/* ── Marketplaces ─────────────────────────────────────────────── */}
+      <Section title="Marketplaces" color="#fbbf24" />
       <IntCard icon="🟡" iconBg="rgba(251,191,36,0.15)" title="Mercado Livre" desc="Pedidos e faturamento do ML" connected={ml} connectLabel="Conectar com Mercado Livre" connectBg="linear-gradient(135deg,#f5a623,#e08e00)"
         onToggle={() => {
           if (!ml) {
-            // Verifica setup antes de iniciar OAuth
             fetch('/api/ml/setup').then(r => r.json()).then(d => {
-              if (d.ok) {
-                window.location.href = '/api/auth/ml'
-              } else {
-                setMlSetupNeeded(true)
-                setMlSetupSql(d.sql || '')
-              }
+              if (d.ok) { window.location.href = '/api/auth/ml' }
+              else { setMlSetupNeeded(true); setMlSetupSql(d.sql || '') }
             }).catch(() => { window.location.href = '/api/auth/ml' })
-          } else {
-            setMl(false); onToast('Mercado Livre desconectado')
-          }
+          } else { setMl(false); onToast('Mercado Livre desconectado') }
         }}
       />
       {mlSetupNeeded && (
@@ -320,8 +323,11 @@ function IntegracoesPage({ onToast }: { onToast: (m: string) => void }) {
           </div>
         </div>
       )}
-
       <IntCard icon="🧡" iconBg="rgba(249,115,22,0.15)" title="Shopee" desc="Pedidos e faturamento da Shopee" connected={shopee} connectLabel="Conectar com Shopee" connectBg="linear-gradient(135deg,#f97316,#c2410c)" onToggle={() => { setShopee(!shopee); onToast(shopee ? 'Shopee desconectada' : 'Shopee conectada!') }} />
+
+      {/* ── Tráfego Pago ─────────────────────────────────────────────── */}
+      <Section title="Tráfego Pago" color="#34d399" />
+      <IntCard icon="📘" iconBg="rgba(24,119,242,0.15)" title="Meta Ads" desc="Gastos com anúncios automaticamente" connected={meta} connectLabel="Conectar com Facebook" connectBg="linear-gradient(135deg,#1877f2,#0d5abf)" onToggle={() => { if (!meta) { window.location.href = '/api/auth/meta' } else { setMeta(false); onToast('Meta Ads desconectado') } }} />
       <IntCard icon="🎯" iconBg="rgba(234,67,53,0.15)" title="Google Ads" desc="Gastos com anúncios automaticamente" connected={google} connectLabel="Conectar com Google Ads" connectBg="linear-gradient(135deg,#ea4335,#c5221f)" onToggle={() => { setGoogle(!google); onToast(google ? 'Google Ads desconectado' : 'Google Ads conectado!') }} />
     </div>
   )

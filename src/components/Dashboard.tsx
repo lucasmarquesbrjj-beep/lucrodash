@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Sk, skSt } from './LoadingSkeleton'
 
 // [FIX PERMANENTE - Meta Ads parallel fetch - não remover]
@@ -27,6 +27,15 @@ export default function Dashboard({ taxas }: { taxas: any }) {
   const [filter, setFilter] = useState('today')
   const [channel, setChannel] = useState('ecom')
   const [showCustom, setShowCustom] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  const doRefresh = () => {
+    try { Object.keys(localStorage).filter(k => k.startsWith('hd_')).forEach(k => localStorage.removeItem(k)) } catch {}
+    setRefreshKey(k => k + 1)
+  }
+  // ref estável para pull-to-refresh (evita stale closure no event listener)
+  const doRefreshRef = useRef(doRefresh)
+  doRefreshRef.current = doRefresh
   const [customStart, setCustomStart] = useState('')
   const [customEnd, setCustomEnd] = useState('')
 
@@ -133,7 +142,7 @@ export default function Dashboard({ taxas }: { taxas: any }) {
       .then(r => r.json()).then(d => { if (!cancelled) setFunnel({ abandoned: d.abandoned ?? 0 }) }).catch(() => {})
 
     return () => { cancelled = true }
-  }, [filter])
+  }, [filter, refreshKey])
 
   useEffect(() => {
     if (channel !== 'ml') { setMlData(null); setMlNotConnected(false); setMlAdsSpend(0); setMlAdsAvailable(false); return }
@@ -147,13 +156,15 @@ export default function Dashboard({ taxas }: { taxas: any }) {
     try {
       const stale    = localStorage.getItem(mlKey)
       const staleAds = localStorage.getItem(mlAdsKey)
-      if (stale) {
-        // Restaura orders + ads spend juntos → único re-render com lucro correto
+      if (stale && staleAds !== null) {
+        // Ambos os caches presentes — lucro correto na primeira renderização
         setMlData(JSON.parse(stale))
-        setMlAdsSpend(staleAds !== null ? Number(staleAds) : 0)
-        setMlAdsAvailable(staleAds !== null)
+        setMlAdsSpend(Number(staleAds))
+        setMlAdsAvailable(true)
         setMlLoading(false)
       } else {
+        // Falta orders ou ads — skeleton até Promise.all resolver (regra: nunca mostrar
+        // lucro sem custo de ads)
         setMlData(null); setMlAdsSpend(0); setMlAdsAvailable(false); setMlLoading(true)
       }
     } catch { setMlData(null); setMlAdsSpend(0); setMlAdsAvailable(false); setMlLoading(true) }
@@ -181,7 +192,24 @@ export default function Dashboard({ taxas }: { taxas: any }) {
       } else { setMlLoading(false) }
     }).catch(() => { if (!cancelled) setMlLoading(false) })
     return () => { cancelled = true }
-  }, [channel, filter])
+  }, [channel, filter, refreshKey])
+
+  // Pull-to-refresh: registrado uma vez, usa ref para acessar doRefresh atual
+  useEffect(() => {
+    let startY = 0
+    const onStart = (e: TouchEvent) => { startY = e.touches[0].clientY }
+    const onEnd = (e: TouchEvent) => {
+      const dy = e.changedTouches[0].clientY - startY
+      const main = document.querySelector('main')
+      if (dy > 72 && (main ? main.scrollTop <= 4 : window.scrollY <= 4)) doRefreshRef.current()
+    }
+    document.addEventListener('touchstart', onStart, { passive: true })
+    document.addEventListener('touchend', onEnd, { passive: true })
+    return () => {
+      document.removeEventListener('touchstart', onStart)
+      document.removeEventListener('touchend', onEnd)
+    }
+  }, [])
 
   const isML = channel === 'ml'
   const d = isML
@@ -269,13 +297,15 @@ export default function Dashboard({ taxas }: { taxas: any }) {
           <p style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>Pelos Pets · Visão geral da operação</p>
         </div>
         <div>
-          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 6 }}>
+          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 6, alignItems: 'center' }}>
             {FILTERS.map(([v, l]) => (
               <button key={v} onClick={() => { setFilter(v); setShowCustom(false) }}
                 style={{ padding: '5px 12px', borderRadius: 20, fontSize: 12, border: filter === v && !showCustom ? '1.5px solid #6366f1' : '1px solid #2d2d3d', background: filter === v && !showCustom ? 'rgba(99,102,241,0.15)' : 'transparent', color: filter === v && !showCustom ? '#a5b4fc' : '#64748b', cursor: 'pointer' }}>{l}</button>
             ))}
             <button onClick={() => setShowCustom(!showCustom)}
               style={{ padding: '5px 12px', borderRadius: 20, fontSize: 12, border: showCustom ? '1.5px solid #6366f1' : '1px solid #2d2d3d', background: showCustom ? 'rgba(99,102,241,0.15)' : 'transparent', color: showCustom ? '#a5b4fc' : '#64748b', cursor: 'pointer' }}>📅 Período</button>
+            <button onClick={doRefresh} title="Atualizar dados"
+              style={{ padding: '5px 10px', borderRadius: 20, fontSize: 13, border: '1px solid #2d2d3d', background: 'transparent', color: '#64748b', cursor: 'pointer', lineHeight: 1 }}>↻</button>
           </div>
           {showCustom && (
             <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
