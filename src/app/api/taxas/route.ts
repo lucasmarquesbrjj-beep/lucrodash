@@ -17,6 +17,13 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
+
+  // [PROTEÇÃO PERMANENTE - não remover]
+  // ml_access_token e meta_access_token NUNCA devem ser alterados por esta rota.
+  // Tokens só são escritos pelas rotas /api/auth/ml/callback e /api/auth/meta/callback.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { ml_access_token, meta_access_token, ...safeBody } = body;
+
   const res = await fetch(`${SUPABASE_URL}/rest/v1/taxas_config?id=eq.config`, {
     method: 'PATCH',
     headers: {
@@ -25,7 +32,7 @@ export async function POST(request: NextRequest) {
       'Content-Type': 'application/json',
       'Prefer': 'return=representation',
     },
-    body: JSON.stringify({ ...body, updated_at: new Date().toISOString() }),
+    body: JSON.stringify({ ...safeBody, updated_at: new Date().toISOString() }),
   });
   const data = await res.json();
   return NextResponse.json(data[0] || {});
