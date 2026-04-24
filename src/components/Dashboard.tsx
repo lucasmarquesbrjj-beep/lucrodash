@@ -138,17 +138,28 @@ export default function Dashboard({ taxas }: { taxas: any }) {
   useEffect(() => {
     if (channel !== 'ml') { setMlData(null); setMlNotConnected(false); setMlAdsSpend(0); setMlAdsAvailable(false); return }
     let cancelled = false
-    setMlNotConnected(false); setMlAdsSpend(0); setMlAdsAvailable(false)
+    setMlNotConnected(false)
     // [FIX PERMANENTE - não remover] chave ml2_ (v2) — ml_ tinha cache com dados sem filtro de data
-    const mlKey = `hd_ml2_${filter}`
+    // mlAdsKey guarda o último spend de ads junto — restaurado junto ao stale para
+    // evitar que o lucro mostre primeiro sem custo de ads e depois com (2 re-renders)
+    const mlKey    = `hd_ml2_${filter}`
+    const mlAdsKey = `hd_ml2_ads_${filter}`
     try {
-      const stale = localStorage.getItem(mlKey)
-      if (stale) { setMlData(JSON.parse(stale)); setMlLoading(false) }
-      else { setMlData(null); setMlLoading(true) }
-    } catch { setMlData(null); setMlLoading(true) }
+      const stale    = localStorage.getItem(mlKey)
+      const staleAds = localStorage.getItem(mlAdsKey)
+      if (stale) {
+        // Restaura orders + ads spend juntos → único re-render com lucro correto
+        setMlData(JSON.parse(stale))
+        setMlAdsSpend(staleAds !== null ? Number(staleAds) : 0)
+        setMlAdsAvailable(staleAds !== null)
+        setMlLoading(false)
+      } else {
+        setMlData(null); setMlAdsSpend(0); setMlAdsAvailable(false); setMlLoading(true)
+      }
+    } catch { setMlData(null); setMlAdsSpend(0); setMlAdsAvailable(false); setMlLoading(true) }
 
-    // [FIX PERMANENTE - não remover] Promise.all garante que orders + ads chegam juntos
-    // setMlData + setMlAdsSpend + setMlLoading(false) rodam no mesmo callback
+    // [FIX PERMANENTE - não remover] Promise.all: orders + ads em paralelo
+    // setMlData + setMlAdsSpend + setMlAdsAvailable + setMlLoading(false) no MESMO .then()
     // → React 18 bate em UM re-render → lucro não pula entre estados intermediários
     Promise.all([
       fetch(`/api/ml/orders?filter=${filter}`).then(r => r.json()).catch(() => null),
@@ -163,7 +174,10 @@ export default function Dashboard({ taxas }: { taxas: any }) {
         setMlAdsSpend(spend)
         setMlAdsAvailable(adsOk)
         setMlLoading(false)
-        try { localStorage.setItem(mlKey, JSON.stringify(ordersData)) } catch {}
+        try {
+          localStorage.setItem(mlKey, JSON.stringify(ordersData))
+          localStorage.setItem(mlAdsKey, String(spend))
+        } catch {}
       } else { setMlLoading(false) }
     }).catch(() => { if (!cancelled) setMlLoading(false) })
     return () => { cancelled = true }
@@ -305,8 +319,9 @@ export default function Dashboard({ taxas }: { taxas: any }) {
 
       {!mlNotConnected && (<>
 
-        {/* KPI cards — sempre visíveis, skeleton inline por fonte de dados */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 14 }}>
+        {/* KPI cards — repeat(auto-fill, minmax(min(150px,calc(50%-5px)),1fr))
+            garante mínimo de 2 colunas em qualquer largura de tela (mobile incluído) */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(min(150px,calc(50% - 5px)),1fr))', gap: 10, marginBottom: 14 }}>
           {([
             { label: 'Faturamento pago', color: '#6366f1', ld: cardLoading, val: brl(fat), sub: isML ? undefined : `Bruto: ${brl(Math.round((d.faturamentoBruto || 0) * m))}` },
             // [FIX PERMANENTE - não remover] ld: cardLoading (Shopify+Meta para ecom, mlLoading para ML)
