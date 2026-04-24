@@ -31,6 +31,14 @@
 - **Ao mexer** em qualquer rota de auth ou integração, verificar que os tokens salvos no Supabase continuam intactos após o deploy
 - **ML desconectando sozinho**: problema conhecido — nunca introduzir código que escreva `null` em tokens fora do fluxo explícito de desconexão do usuário
 
+## Canais do dashboard
+- **Aba Geral** = soma real de E-commerce + Mercado Livre + Shopee — **nunca multiplicador fixo**
+  - Custos ecom (checkout, gateway, frete) aplicados só sobre a parcela ecom
+  - Custos ML (taxa, ads) aplicados só sobre a parcela ML
+  - Shopee = 0 enquanto não conectada
+- **Aba Shopee** mostra tela "não conectado" enquanto não há integração real — sem dados inventados ou multiplicadores
+- **Nunca** usar `MULT` ou qualquer multiplicador fixo (`0.18`, `1.53`, etc.) para simular canais
+
 ## Layout
 - **Nunca sobrescrever** `layout.tsx` — background `#0a0918` e metadados estão lá
 

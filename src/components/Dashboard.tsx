@@ -146,7 +146,8 @@ export default function Dashboard({ taxas }: { taxas: any }) {
   }, [filter, refreshKey])
 
   useEffect(() => {
-    if (channel !== 'ml') { setMlData(null); setMlNotConnected(false); setMlAdsSpend(0); setMlAdsAvailable(false); return }
+    // Geral também precisa de dados do ML para somar com o ecom
+    if (channel !== 'ml' && channel !== 'geral') { setMlData(null); setMlNotConnected(false); setMlAdsSpend(0); setMlAdsAvailable(false); return }
     let cancelled = false
     setMlNotConnected(false)
     // [FIX PERMANENTE - não remover] chave ml2_ (v2) — ml_ tinha cache com dados sem filtro de data
@@ -225,7 +226,17 @@ export default function Dashboard({ taxas }: { taxas: any }) {
     }
   }, [])
 
-  const isML = channel === 'ml'
+  const isML    = channel === 'ml'
+  const isGeral = channel === 'geral'
+  const isShopee = channel === 'shopee'
+
+  // Geral: soma real ecom + ML (Shopee = 0, não conectada)
+  const geralFat     = (data?.faturamentoPago || 0) + (mlData?.faturamentoPago || 0)
+  const geralPedidos = (data?.pedidosPagos    || 0) + (mlData?.pedidosPagos    || 0)
+  const geralHourly  = Array(24).fill(0).map((_: any, i: number) =>
+    (data?.hourly?.[i] || 0) + (mlData?.hourly?.[i] || 0)
+  )
+
   const d = isML
     ? (mlData ? {
         faturamentoPago: mlData.faturamentoPago, faturamentoBruto: mlData.faturamentoPago,
@@ -235,27 +246,47 @@ export default function Dashboard({ taxas }: { taxas: any }) {
         cartaoAprovado: 0, cartaoPendente: 0, pixPago: 0, pixPendente: 0,
         boletoPago: 0, boletoPendente: 0, reenvios: 0, reenviosPct: 0,
       } : {})
+    : isGeral
+    ? {
+        faturamentoPago: geralFat, faturamentoBruto: geralFat,
+        pedidosPagos: geralPedidos, pedidosGerados: geralPedidos,
+        ticketMedio: geralPedidos > 0 ? geralFat / geralPedidos : 0,
+        hourly: geralHourly,
+        states: data?.states || [],
+        pedidosPendentes: data?.pedidosPendentes || 0,
+        descontos: data?.descontos || 0, frete: data?.frete || 0,
+        cartaoAprovado: data?.cartaoAprovado || 0, cartaoPendente: data?.cartaoPendente || 0,
+        pixPago: data?.pixPago || 0, pixPendente: data?.pixPendente || 0,
+        boletoPago: data?.boletoPago || 0, boletoPendente: data?.boletoPendente || 0,
+        reenvios: data?.reenvios || 0, reenviosPct: data?.reenviosPct || 0,
+      }
     : (data || {})
 
-  const MULT: Record<string, number> = { ecom: 1, ml: 1, shopee: 0.18, geral: 1.53 }
-  const m = MULT[channel] || 1
-  const fat = Math.round((d.faturamentoPago || 0) * m)
-  const pedidos = Math.round((d.pedidosPagos || 0) * m)
-  const hourly: number[] = (d.hourly || Array(24).fill(0)).map((v: number) => Math.round(v * m))
-  const states = (d.states || []).map((s: any) => ({ ...s, orders: Math.round(s.orders * m), revenue: Math.round(s.revenue * m) }))
+  // m = 1 para todos os canais — sem multiplicadores falsos
+  // Shopee mostra tela de "não conectado"; Geral usa soma real acima
+  const m = 1
+  const fat     = d.faturamentoPago || 0
+  const pedidos = d.pedidosPagos    || 0
+  const hourly: number[] = (d.hourly || Array(24).fill(0)).map((v: number) => Math.round(v))
+  const states = (d.states || []).map((s: any) => ({ ...s }))
+
+  // Geral: checkout/gateway/frete só sobre a parcela ecom (ML tem suas próprias taxas)
+  const ecomFat     = isGeral ? (data?.faturamentoPago || 0) : fat
+  const ecomPedidos = isGeral ? (data?.pedidosPagos    || 0) : pedidos
+  const mlFatBase   = isGeral ? (mlData?.faturamentoPago || 0) : (isML ? fat : 0)
 
   // Custos diferenciados por canal:
   // ML: sem checkout/gateway/Meta/Google — usa Taxa ML no lugar
-  // Ecom/Shopee/Geral: taxas normais da Shopify + Meta Ads
-  const tCo = isML ? 0 : fat * (taxas.checkout_pct || 0) / 100
-  const tGw = isML ? 0 : fat * (taxas.gateway_pct || 0) / 100
+  // Geral: checkout/gateway/frete sobre ecom; taxa ML + ads sobre ML
+  const tCo = isML ? 0 : ecomFat * (taxas.checkout_pct || 0) / 100
+  const tGw = isML ? 0 : ecomFat * (taxas.gateway_pct || 0) / 100
   const tIm = fat * (taxas.imposto_pct || 0) / 100
   const tPr = pedidos * (taxas.custo_produto || 0)
-  const tFr = (isML || channel === 'shopee') ? 0 : pedidos * (taxas.frete_fixo || 0)
+  const tFr = (isML || isShopee) ? 0 : ecomPedidos * (taxas.frete_fixo || 0)
   // [FIX PERMANENTE - não remover] tMl usa taxaMlTotal da API (real) se disponível; fallback 13.5%
-  const tMl = isML ? (mlData?.taxaMlTotal ?? fat * (taxas.ml_taxa_pct ?? 13.5) / 100) : 0
+  const tMl = (isML || isGeral) ? (mlData?.taxaMlTotal ?? mlFatBase * (taxas.ml_taxa_pct ?? 13.5) / 100) : 0
   // [FIX PERMANENTE - não remover] tMlAds = gasto real em Publicidade ML (via /api/ml/ads)
-  const tMlAds = isML ? mlAdsSpend : 0
+  const tMlAds = (isML || isGeral) ? mlAdsSpend : 0
   const tMa = isML ? 0 : metaSpend
   const tGo = isML ? 0 : (taxas.google_ads_hoje || 0)
   const tMi = isML ? 0 : tMa * (taxas.imposto_meta_pct || 0) / 100
@@ -270,8 +301,13 @@ export default function Dashboard({ taxas }: { taxas: any }) {
   const mlCpa  = mlAdsAvailable && mlAdsSpend > 0 && pedidos > 0 ? mlAdsSpend / pedidos : null
   const mlRoas = mlAdsAvailable && mlAdsSpend > 0 ? fat / mlAdsSpend : null
 
-  // loading correto por canal: ML usa mlLoading, os outros usam o loading do Shopify+Meta
-  const cardLoading = isML ? (mlLoading && !mlData) : loading
+  // loading correto por canal:
+  // Geral aguarda ambos (ecom E ML) antes de mostrar dados — mesmo princípio do Promise.all
+  const cardLoading = isML
+    ? (mlLoading && !mlData)
+    : isGeral
+    ? (loading || (mlLoading && !mlData))
+    : loading
 
   const ccAprov = Math.round((d.cartaoAprovado || 0) * m)
   const ccPend  = Math.round((d.cartaoPendente || 0) * m)
@@ -355,7 +391,7 @@ export default function Dashboard({ taxas }: { taxas: any }) {
         ))}
       </div>
 
-      {loading && isSlow && (
+      {(loading || (isGeral && mlLoading)) && isSlow && (
         <div style={{ marginBottom: 14, padding: '8px 14px', background: '#141320', border: '1px solid #1e1d2e', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ height: 4, flex: 1, background: '#1e1d2e', borderRadius: 2, overflow: 'hidden', position: 'relative' }}>
             <div style={{ position: 'absolute', top: 0, height: '100%', background: 'linear-gradient(90deg,#4338ca,#7c3aed)', borderRadius: 2, animation: 'ld-slide 1.6s ease-in-out infinite' }} />
@@ -374,7 +410,15 @@ export default function Dashboard({ taxas }: { taxas: any }) {
         </div>
       )}
 
-      {!mlNotConnected && (<>
+      {isShopee && (
+        <div style={{ padding: '32px 20px', background: '#141320', border: '1px solid #292131', borderRadius: 14, marginBottom: 14, textAlign: 'center' as any }}>
+          <div style={{ fontSize: 28, marginBottom: 10 }}>🧡</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>Shopee não conectada</div>
+          <div style={{ fontSize: 12, color: '#64748b' }}>Conecte sua conta em <strong style={{ color: '#a5b4fc' }}>Integrações</strong> para ver os dados reais da Shopee.</div>
+        </div>
+      )}
+
+      {!isShopee && !(isML && mlNotConnected) && (<>
 
         {/* KPI cards — repeat(auto-fill, minmax(min(150px,calc(50%-5px)),1fr))
             garante mínimo de 2 colunas em qualquer largura de tela (mobile incluído) */}
@@ -419,21 +463,38 @@ export default function Dashboard({ taxas }: { taxas: any }) {
             ) : (
               <>
                 {(isML ? [
-                  // Composição do lucro específica para Mercado Livre
+                  // ML
                   { title: 'Receita', rows: [{ label: 'Faturamento pago', val: fat, pos: true }] },
-                  { title: 'Taxa Mercado Livre', rows: [
-                    { label: mlData?.taxaMlTotal ? 'Taxa ML (real)' : `Taxa ML (${taxas.ml_taxa_pct ?? 13.5}%)`, val: tMl },
-                  ]},
+                  { title: 'Taxa Mercado Livre', rows: [{ label: mlData?.taxaMlTotal ? 'Taxa ML (real)' : `Taxa ML (${taxas.ml_taxa_pct ?? 13.5}%)`, val: tMl }] },
                   ...(tMlAds > 0 ? [{ title: 'Publicidade ML', rows: [{ label: 'Ads Mercado Livre', val: tMlAds }] }] : []),
-                  { title: 'Impostos', rows: [
-                    { label: `Faturamento (${taxas.imposto_pct || 0}%)`, val: tIm },
-                  ]},
+                  { title: 'Impostos', rows: [{ label: `Faturamento (${taxas.imposto_pct || 0}%)`, val: tIm }] },
                   { title: 'Custos Operacionais', rows: [
                     { label: `Custo produto (${pedidos}x)`, val: tPr },
                     { label: `Frete (${pedidos}x)`, val: tFr },
                   ]},
+                ] : isGeral ? [
+                  // Geral = Ecom + ML (soma real)
+                  { title: 'Receita', rows: [{ label: 'Faturamento pago (Ecom + ML)', val: fat, pos: true }] },
+                  { title: 'Taxa Mercado Livre', rows: [{ label: mlData?.taxaMlTotal ? 'Taxa ML (real)' : `Taxa ML (${taxas.ml_taxa_pct ?? 13.5}%)`, val: tMl }] },
+                  ...(tMlAds > 0 ? [{ title: 'Publicidade ML', rows: [{ label: 'Ads Mercado Livre', val: tMlAds }] }] : []),
+                  { title: 'Taxas E-commerce', rows: [
+                    { label: `Checkout (${taxas.checkout_pct || 0}%)`, val: tCo },
+                    { label: `Gateway (${taxas.gateway_pct || 0}%)`, val: tGw },
+                  ]},
+                  { title: 'Impostos', rows: [
+                    { label: `Faturamento (${taxas.imposto_pct || 0}%)`, val: tIm },
+                    { label: `Meta Ads (${taxas.imposto_meta_pct || 0}%)`, val: tMi },
+                  ]},
+                  { title: 'Custos Operacionais', rows: [
+                    { label: `Custo produto (${pedidos}x)`, val: tPr },
+                    { label: `Frete ecom (${ecomPedidos}x)`, val: tFr },
+                  ]},
+                  { title: 'Publicidade', rows: [
+                    { label: 'Meta Ads', val: tMa },
+                    { label: 'Google Ads', val: tGo },
+                  ]},
                 ] : [
-                  // Composição do lucro para Ecom / Shopee / Geral
+                  // Ecom
                   { title: 'Receita', rows: [{ label: 'Faturamento pago', val: fat, pos: true }] },
                   { title: 'Taxas de Plataforma', rows: [
                     { label: `Checkout (${taxas.checkout_pct || 0}%)`, val: tCo },
