@@ -25,6 +25,12 @@
 ## Mobile
 - **7 KPI cards** visíveis no mobile em 2 colunas: `gridTemplateColumns: repeat(auto-fill, minmax(min(150px, calc(50% - 5px)), 1fr))`
 
+## Integrações — tokens nunca podem ser perdidos
+- **NUNCA** apagar ou sobrescrever `ml_access_token` ou `meta_access_token` no Supabase durante correções de código
+- **Só desconectar** uma integração se o usuário clicar explicitamente em "Desconectar" na página de Integrações
+- **Ao mexer** em qualquer rota de auth ou integração, verificar que os tokens salvos no Supabase continuam intactos após o deploy
+- **ML desconectando sozinho**: problema conhecido — nunca introduzir código que escreva `null` em tokens fora do fluxo explícito de desconexão do usuário
+
 ## Layout
 - **Nunca sobrescrever** `layout.tsx` — background `#0a0918` e metadados estão lá
 
